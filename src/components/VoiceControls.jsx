@@ -134,7 +134,8 @@ function VoiceControls({ onToolCall, imageUrl }) {
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
-      const recognition = new wtrue;
+      const recognition = new webkitSpeechRecognition();
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
@@ -167,22 +168,21 @@ function VoiceControls({ onToolCall, imageUrl }) {
       recognitionRef.current = recognition;
     }
 
-    return () => {e.repeat && !isPressing && !isSpeaking && !isProcessingRef.current) {
-        e.preventDefault();
-        setIsPressing(true);
-        transcriptRef.current = ''ent.onend = null;
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
       }
     };
-  }, [handleUserMessage, isPressing
-  }, [handleUserMessage]);
+  }, [handleUserMessage, isPressing]);
 
   useEffect(() => {
     if (!isActive) return;
 
     const handleKeyDown = (e) => {
-      if (e.code === 'Space' && !isPressing && !isSpeaking && !isProcessingRef.current) {
+      if (e.code === 'Space' && !e.repeat && !isPressing && !isSpeaking && !isProcessingRef.current) {
         e.preventDefault();
         setIsPressing(true);
+        transcriptRef.current = '';
         startListening();
       }
     };
