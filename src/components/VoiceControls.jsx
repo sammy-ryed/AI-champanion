@@ -142,6 +142,7 @@ function VoiceControls({ onToolCall, imageUrl }) {
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
         let finalTranscript = '';
@@ -170,6 +171,19 @@ function VoiceControls({ onToolCall, imageUrl }) {
       recognition.onerror = (event) => {
         console.error('Recognition error:', event.error);
         setIsListening(false);
+        
+        if (event.error === 'network') {
+          console.warn('Network error - restarting recognition');
+          setTimeout(() => {
+            if (isPressing) {
+              startListening();
+            }
+          }, 100);
+        } else if (event.error === 'no-speech') {
+          console.log('No speech detected, continuing...');
+        } else if (event.error === 'aborted') {
+          console.log('Recognition aborted');
+        }
       };
 
       recognitionRef.current = recognition;
@@ -235,6 +249,17 @@ function VoiceControls({ onToolCall, imageUrl }) {
     setTimeLeft(60);
     setMessages([]);
     isProcessingRef.current = false;
+
+    // Request microphone permission
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone permission granted');
+    } catch (err) {
+      console.error('Microphone permission denied:', err);
+      alert('Please allow microphone access to use voice chat!');
+      setIsActive(false);
+      return;
+    }
 
     try {
       const response = await axios.post(`${API_URL}/start-conversation`, {
