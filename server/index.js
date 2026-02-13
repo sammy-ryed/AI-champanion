@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 dotenv.config();
 
@@ -14,10 +13,6 @@ app.use(express.json());
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
-});
-
-const elevenlabs = new ElevenLabsClient({
-  apiKey: process.env.ELEVENLABS_API_KEY,
 });
 
 // Store conversation history
@@ -122,36 +117,6 @@ app.post('/api/start-conversation', async (req, res) => {
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to start conversation' });
-  }
-});
-
-app.post('/api/text-to-speech', async (req, res) => {
-  try {
-    const { text } = req.body;
-
-    const audio = await elevenlabs.textToSpeech.convert('21m00Tcm4TlvDq8ikWAM', {
-      text: text,
-      model_id: 'eleven_turbo_v2_5',
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.75,
-      }
-    });
-
-    const chunks = [];
-    for await (const chunk of audio) {
-      chunks.push(chunk);
-    }
-
-    const audioBuffer = Buffer.concat(chunks);
-    res.set({
-      'Content-Type': 'audio/mpeg',
-      'Content-Length': audioBuffer.length,
-    });
-    res.send(audioBuffer);
-  } catch (error) {
-    console.error('TTS Error:', error);
-    res.status(500).json({ error: 'Failed to generate speech' });
   }
 });
 
