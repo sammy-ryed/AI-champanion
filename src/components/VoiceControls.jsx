@@ -11,7 +11,8 @@ function VoiceControls({ onToolCall, imageUrl }) {
   const [isListening, setIsListening] = useState(false);
   const sessionId = useRef(Date.now().toString());
   const recognitionRef = useRef(null);
-  const synthRef = useRef(window.speechSynthesis);
+  const audioRef = useRef(new Audio());
+  const isSpeakingRef = useRef(false);
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
@@ -19,20 +20,56 @@ function VoiceControls({ onToolCall, imageUrl }) {
       recognition.continuous = true;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
         const transcript = event.results[event.results.length - 1][0].transcript;
+        console.log('Heard:', transcript);
         handleUserMessage(transcript);
       };
 
       recognition.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
+        if (event.error === 'no-speech') {
+          // Restart if no speech detected
+          if (isActive && !isSpeakingRef.current) {
+            setTimeout(() => {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.log('Recognition already started');
+              }
+            }, 100);
+          }
+        }
+      };
+
+      recognition.onend = () => {
+        console.log('Recognition ended');
         setIsListening(false);
+        // Auto-restart recognition if conversation is still active and not speaking
+        if (isActive && !isSpeakingRef.current) {
+          setTimeout(() => {
+            try {
+              recognitionRef.current?.start();
+              setIsListening(true);
+              console.log('Recognition restarted');
+            } catch (e) {
+              console.log('Could not restart:', e.message);
+            }
+          }, 500);
+        }
       };
 
       recognitionRef.current = recognition;
     }
-  }, []);
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+      }
+    };
+  }, [isActive]);
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
@@ -49,15 +86,52 @@ function VoiceControls({ onToolCall, imageUrl }) {
     }
   }, [isActive, timeLeft]);
 
-  const speak = (text) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    utterance.pitch = 1.1;
-    synthRef.current.speak(utterance);
-    
-    return new Promise((resolve) => {
-      utterance.onend = resolve;
-    });
+  const speak = async (text) => {
+    try {
+      isSpeakingRef.current = true;
+      setIsListening(false);
+      
+      // Stop recognition while speaking
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Already stopped
+        }
+      }
+
+      const response = await axios.post(`${API_URL}/text-to-speech`, 
+        { text },
+        { responseType: 'arraybuffer' }
+      );
+
+      const blob = new Blob([response.data], { type: 'audio/mpeg' });
+      const audioUrl = URL.createObjectURL(blob);
+      
+      audioRef.current.src = audioUrl;
+      
+      return new Promise((resolve) => {
+        audioRef.current.onended = () => {
+          isSpeakingRef.current = false;
+          URL.revokeObjectURL(audioUrl);
+          resolve();
+        };
+        audioRef.current.play();
+      });
+    } catch (error) {
+      console.error('TTS Error:', error);
+      isSpeakingRef.current = false;
+      // Fallback to browser TTS
+      return new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        utterance.onend = () => {
+          isSpeakingRef.current = false;
+          resolve();
+        };
+        window.speechSynthesis.speak(utterance);
+      });
+    }
   };
 
   const handleStart = async () => {
@@ -76,9 +150,17 @@ function VoiceControls({ onToolCall, imageUrl }) {
       
       await speak(aiMessage);
       
+      // Start listening after AI finishes speaking
       if (recognitionRef.current) {
-        recognitionRef.current.start();
-        setIsListening(true);
+        setTimeout(() => {
+          try {
+            recognitionRef.current.start();
+            setIsListening(true);
+            console.log('Started listening');
+          } catch (e) {
+            console.log('Recognition start error:', e);
+          }
+        }, 300);
       }
     } catch (error) {
       console.error('Error starting conversation:', error);
@@ -86,10 +168,19 @@ function VoiceControls({ onToolCall, imageUrl }) {
   };
 
   const handleUserMessage = async (userText) => {
-    if (!isActive) return;
+    if (!isActive || isSpeakingRef.current) return;
 
+    console.log('Processing message:', userText);
     setMessages(prev => [...prev, { sender: 'You', text: userText, type: 'user' }]);
-    setIsListening(false);
+
+    // Stop listening while processing
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Already stopped
+      }
+    }
 
     try {
       const response = await axios.post(`${API_URL}/chat`, {
@@ -109,26 +200,52 @@ function VoiceControls({ onToolCall, imageUrl }) {
       
       await speak(aiResponse);
       
+      // Restart listening after AI speaks
       if (recognitionRef.current && timeLeft > 5) {
-        recognitionRef.current.start();
-        setIsListening(true);
+        setTimeout(() => {
+          try {
+            recognitionRef.current.start();
+            setIsListening(true);
+            console.log('Restarted listening after response');
+          } catch (e) {
+            console.log('Could not restart:', e);
+          }
+        }, 300);
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      // Try to restart listening even if there's an error
+      if (recognitionRef.current && isActive) {
+        setTimeout(() => {
+          try {
+            recognitionRef.current.start();
+            setIsListening(true);
+          } catch (e) {
+            console.log('Error restart failed:', e);
+          }
+        }, 300);
+      }
     }
   };
 
   const handleEnd = () => {
     setIsActive(false);
     setIsListening(false);
+    isSpeakingRef.current = false;
+    
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
+        recognitionRef.current.onend = null;
       } catch (e) {
         // Already stopped
       }
     }
-    synthRef.current.cancel();
+    
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    
     speak("Great conversation! Thanks for sharing your thoughts with me!");
   };
 

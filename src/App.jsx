@@ -21,7 +21,7 @@ function App() {
 
   const storyImages = [
     {
-      url: "https://images.unsplash.com/photo-1518021857458-4c0d7c0ebba6?w=800&q=80",
+      url: "https://cdn.pixabay.com/photo/2015/12/01/20/28/road-1072823_1280.jpg",
       alt: "A magical forest adventure"
     }
   ];
