@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import VoiceControls from './components/VoiceControls'
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
             className="story-image"
           />
         </div>
+        
+        <VoiceControls />
       </div>
     </div>
   )
