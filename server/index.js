@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 dotenv.config();
 
@@ -13,6 +14,10 @@ app.use(express.json());
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
+});
+
+const elevenlabs = new ElevenLabsClient({
+  apiKey: process.env.ELEVENLABS_API_KEY,
 });
 
 // Store conversation history
@@ -117,6 +122,31 @@ app.post('/api/start-conversation', async (req, res) => {
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to start conversation' });
+  }
+});
+
+app.post('/api/text-to-speech', async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    const audio = await elevenlabs.textToSpeech.convert('21m00Tcm4TlvDq8ikWAM', {
+      text,
+      model_id: 'eleven_turbo_v2_5',
+    });
+
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked',
+    });
+
+    for await (const chunk of audio) {
+      res.write(chunk);
+    }
+    
+    res.end();
+  } catch (error) {
+    console.error('TTS Error:', error);
+    res.status(500).json({ error: 'Text-to-speech failed' });
   }
 });
 
