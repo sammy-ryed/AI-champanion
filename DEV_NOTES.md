@@ -57,16 +57,24 @@ cp .env.example .env
 ✅ Real-time voice conversation  
 ✅ Speech-to-text using Web Speech API  
 ✅ Text-to-speech for AI responses  
-✅ OpenAI GPT-4 integration  
+✅ Groq (Llama 3.3 70B) integration  
 ✅ Function calling for UI effects  
 ✅ 60-second timed conversations  
 ✅ Beautiful gradient UI  
 ✅ Responsive design  
 
+## Why Groq?
+
+- **Ultra-fast inference**: Responses in milliseconds
+- **Cost-effective**: Lower API costs than alternatives
+- **Great performance**: Llama 3.3 70B quality
+- **Function calling**: Full tool support
+- **Developer-friendly**: Clean SDK and documentation  
+
 ## Known Limitations
 
 - Works best in Chrome/Edge (Web Speech API)
-- Requires OpenAI API key
+- Requires Groq API key (free tier available)
 - Internet connection required
 - English language only (currently)
 

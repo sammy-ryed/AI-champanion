@@ -21,7 +21,7 @@ An interactive AI-powered storytelling experience that engages children through 
 
 **Backend:**
 - Node.js + Express
-- Groq (Llama 3.3 70B)
+- Groq (Llama 3.3 70B) - Ultra-fast inference
 - Function calling for UI interactions
 
 ## Prerequisites

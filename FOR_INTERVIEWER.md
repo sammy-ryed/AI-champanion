@@ -14,7 +14,7 @@ This is a **real-time AI conversation application** where an AI engages with a c
 | **1-Min Conversation** | ✅ 60-second timer with countdown |
 | **Voice Input** | ✅ Web Speech API - continuous recognition |
 | **Voice Output** | ✅ Speech Synthesis API - natural voice |
-| **AI Conversation** | ✅ OpenAI GPT-4 with context awareness |
+| **AI Conversation** | ✅ Groq (Llama 3.3 70B) with context awareness |
 | **Tool Call** | ✅ Visual effects triggered by AI (sparkle/glow/zoom) |
 | **Quality UI** | ✅ Professional React UI with animations |
 
@@ -145,15 +145,16 @@ npm run dev
 
 - English only (currently)
 - Requires internet connection
-- OpenAI API key needed
+- Groq API key needed (free tier available)
 - Best on Chrome/Edge
 
 ## 🎓 What I Learned
 
 - Real-time speech integration
-- OpenAI function calling
+- Groq function calling
 - Managing asynchronous speech APIs
 - State management for voice apps
+- Ultra-fast LLM inference with Groq
 
 ## 📚 Documentation Structure
 
