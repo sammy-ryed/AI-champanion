@@ -122,3 +122,35 @@
   font-weight: 600;
   color: var(--primary);
 }
+
+.conversation-display::-webkit-scrollbar {
+  width: 8px;
+}
+
+.conversation-display::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.conversation-display::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+.conversation-display::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+@media (max-width: 768px) {
+  .conversation-display {
+    max-height: 300px;
+  }
+  
+  .message.ai {
+    margin-right: 1rem;
+  }
+  
+  .message.user {
+    margin-left: 1rem;
+  }
+}
