@@ -10,6 +10,7 @@ function VoiceControls({ onToolCall, imageUrl }) {
   const [timeLeft, setTimeLeft] = useState(60);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPressing, setIsPressing] = useState(false);
   
   const sessionId = useRef(Date.now().toString());
   const recognitionRef = useRef(null);
@@ -144,9 +145,6 @@ function VoiceControls({ onToolCall, imageUrl }) {
 
       recognition.onend = () => {
         setIsListening(false);
-        if (isActive && !isProcessingRef.current && !isSpeaking) {
-          setTimeout(() => startListening(), 300);
-        }
       };
 
       recognition.onerror = (event) => {
@@ -162,7 +160,35 @@ function VoiceControls({ onToolCall, imageUrl }) {
         recognitionRef.current.onend = null;
       }
     };
-  }, [isActive, isSpeaking, handleUserMessage, startListening]);
+  }, [handleUserMessage]);
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && !isPressing && !isSpeaking && !isProcessingRef.current) {
+        e.preventDefault();
+        setIsPressing(true);
+        startListening();
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space' && isPressing) {
+        e.preventDefault();
+        setIsPressing(false);
+        stopListening();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isActive, isPressing, isSpeaking, startListening, stopListening]);
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
@@ -195,8 +221,6 @@ function VoiceControls({ onToolCall, imageUrl }) {
       setMessages([{ sender: 'AI', text: aiMessage, type: 'ai' }]);
       
       await speak(aiMessage);
-      
-      setTimeout(() => startListening(), 500);
     } catch (error) {
       console.error('Error starting:', error);
     }
@@ -220,7 +244,7 @@ function VoiceControls({ onToolCall, imageUrl }) {
         <>
           <div className="status-bar">
             <div className={`mic-indicator ${isListening ? 'active' : ''}`}>
-              {isListening ? '🎤 Listening...' : isSpeaking ? '🔊 Speaking...' : '⏸️ Paused'}
+              {isListening ? '🎤 Listening...' : isSpeaking ? '🔊 Speaking...' : '⌨️ Hold Space to Talk'}
             </div>
             <div className="timer-badge">{timeLeft}s</div>
             <button className="stop-button" onClick={handleEnd}>Stop</button>

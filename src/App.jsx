@@ -21,8 +21,8 @@ function App() {
 
   const storyImages = [
     {
-      url: "https://cdn.pixabay.com/photo/2015/12/01/20/28/road-1072823_1280.jpg",
-      alt: "A magical forest adventure"
+      url: "https://cdn.pixabay.com/photo/2016/11/29/05/45/astronomy-1867616_1280.jpg",
+      alt: "A magical space adventure with stars and galaxies"
     }
   ];
 
