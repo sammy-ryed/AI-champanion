@@ -122,7 +122,11 @@ function VoiceControls({ onToolCall }) {
     setIsActive(false);
     setIsListening(false);
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Already stopped
+      }
     }
     synthRef.current.cancel();
     speak("Great conversation! Thanks for sharing your thoughts with me!");
