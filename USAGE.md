@@ -23,7 +23,7 @@
 - Ensure you're on HTTPS or localhost
 
 **Backend errors?**
-- Verify OpenAI API key is set in `.env`
+- Verify Groq API key is set in `.env`
 - Check that server is running on port 3001
 - Look at console for detailed error messages
 

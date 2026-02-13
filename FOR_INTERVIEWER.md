@@ -24,8 +24,8 @@ This is a **real-time AI conversation application** where an AI engages with a c
 # 1. Install
 npm install
 
-# 2. Add OpenAI key to .env
-OPENAI_API_KEY=sk-your-key-here
+# 2. Add Groq key to .env
+GROQ_API_KEY=gsk-your-key-here
 
 # 3. Start backend
 npm run server
@@ -44,14 +44,14 @@ npm run dev
 - **State Management**: Clean React hooks
 - **Responsive Design**: Works on mobile/desktop
 
-### Backend (Express + OpenAI)
+### Backend (Express + Groq)
 - **RESTful API**: `/start-conversation`, `/chat`
 - **Function Calling**: AI triggers UI effects
 - **Session Management**: Conversation memory
 - **Error Handling**: Graceful degradation
 
 ### AI Integration
-- **Model**: GPT-4 for natural conversation
+- **Model**: Llama 3.3 70B (via Groq)
 - **System Prompt**: Child-friendly storytelling
 - **Tools**: Visual effect function calling
 - **Context**: Image-aware responses
@@ -86,10 +86,11 @@ npm run dev
 - Modern tooling
 - Optimal for real-time UIs
 
-### Why Express?
-- Lightweight & flexible
-- Easy OpenAI integration
-- Simple session management
+### Why Groq?
+- Ultra-fast inference
+- Cost-effective
+- Great Llama 3.3 performance
+- Function calling support
 
 ### Why Web Speech API?
 - Native browser support

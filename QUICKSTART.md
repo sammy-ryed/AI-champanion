@@ -5,7 +5,7 @@ Get the AI Storyteller running in 3 minutes!
 ## Prerequisites
 
 - Node.js 16+ installed
-- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- Groq API key ([Get one here](https://console.groq.com))
 - Chrome or Edge browser (for best speech recognition)
 
 ## Setup Steps
@@ -27,7 +27,7 @@ cp .env.example .env
 
 Your `.env` should look like:
 ```
-OPENAI_API_KEY=sk-your-actual-key-here
+GROQ_API_KEY=gsk-your-actual-key-here
 PORT=3001
 ```
 
@@ -73,8 +73,8 @@ Navigate to: **http://localhost:5173**
 - Check system microphone is working
 
 ### "Invalid API key" error?
-- Verify OpenAI API key in `.env`
-- Make sure it starts with `sk-`
+- Verify Groq API key in `.env`
+- Make sure it starts with `gsk-`
 - Restart the server after changing `.env`
 
 ### Speech recognition not working?

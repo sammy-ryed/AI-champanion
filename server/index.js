@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 
 dotenv.config();
 
@@ -11,8 +11,8 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 // Store conversation history
@@ -59,8 +59,8 @@ app.post('/api/chat', async (req, res) => {
       }
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
       messages: history,
       max_tokens: 100,
       temperature: 0.8,
@@ -97,8 +97,8 @@ app.post('/api/start-conversation', async (req, res) => {
 
     const prompt = `You're starting a 1-minute conversation with a child about this image: ${imageUrl}. Begin with an engaging question about what they see.`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: 'You are a friendly AI storyteller for children.' },
         { role: 'user', content: prompt }

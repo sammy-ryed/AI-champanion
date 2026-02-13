@@ -21,13 +21,13 @@ An interactive AI-powered storytelling experience that engages children through 
 
 **Backend:**
 - Node.js + Express
-- OpenAI GPT-4 API
+- Groq (Llama 3.3 70B)
 - Function calling for UI interactions
 
 ## Prerequisites
 
 - Node.js 16+ and npm
-- OpenAI API key
+- Groq API key
 - Modern browser with Web Speech API support (Chrome recommended)
 
 ## Setup
@@ -41,9 +41,9 @@ npm install
 ```bash
 cp .env.example .env
 ```
-Then edit `.env` and add your OpenAI API key:
+Then edit `.env` and add your Groq API key:
 ```
-OPENAI_API_KEY=your_key_here
+GROQ_API_KEY=your_key_here
 PORT=3001
 ```
 

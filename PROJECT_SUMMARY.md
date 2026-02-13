@@ -19,7 +19,7 @@ This project is a complete real-time AI conversation application where an AI eng
    - 60-second timed sessions
 
 3. **AI Integration**
-   - OpenAI GPT-4 for natural conversation
+   - Groq (Llama 3.3 70B) for natural conversation
    - Context-aware responses based on image
    - Age-appropriate storytelling tone
    - Conversation memory within session
@@ -39,16 +39,16 @@ This project is a complete real-time AI conversation application where an AI eng
 
 **Backend (Node.js + Express)**
 - RESTful API endpoints
-- OpenAI integration with function calling
+- Groq integration with function calling
 - Session-based conversation memory
 - CORS enabled for local development
 
 ### 📦 Tech Stack
 
 - **Frontend**: React 19, Vite, Web Speech API, Axios
-- **Backend**: Express, OpenAI SDK, dotenv
+- **Backend**: Express, Groq SDK, dotenv
 - **Styling**: CSS3 with custom animations
-- **APIs**: OpenAI GPT-4 with function calling
+- **APIs**: Groq (Llama 3.3 70B) with function calling
 
 ### 🎯 Interview-Ready Features
 
@@ -79,7 +79,7 @@ This project is a complete real-time AI conversation application where an AI eng
 ### 🚀 How to Run
 
 1. Install dependencies: `npm install`
-2. Configure `.env` with OpenAI API key
+2. Configure `.env` with Groq API key
 3. Start backend: `npm run server`
 4. Start frontend: `npm run dev` (in new terminal)
 5. Open `http://localhost:5173`
@@ -89,7 +89,7 @@ This project is a complete real-time AI conversation application where an AI eng
 ✅ **Image Display** - Beautiful, engaging visual  
 ✅ **1-Minute Conversation** - Timed 60-second sessions  
 ✅ **Voice Interaction** - Bidirectional speech I/O  
-✅ **AI Quality** - Natural GPT-4 powered conversation  
+✅ **AI Quality** - Natural Llama 3.3 powered conversation  
 ✅ **Tool Calling** - Visual effects triggered by AI  
 ✅ **User Experience** - Polished, intuitive interface  
 
