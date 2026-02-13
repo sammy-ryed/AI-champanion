@@ -22,8 +22,9 @@ function VoiceControls({ onToolCall, imageUrl }) {
       try {
         recognitionRef.current.stop();
         setIsListening(false);
+        console.log('Stopped listening');
       } catch (e) {
-        // Already stopped
+        console.error('Stop error:', e.message);
       }
     }
   }, []);
@@ -80,17 +81,20 @@ function VoiceControls({ onToolCall, imageUrl }) {
   }, [stopListening]);
 
   const startListening = useCallback(() => {
-    if (recognitionRef.current && !isSpeaking && isActive) {
+    if (recognitionRef.current) {
       try {
         recognitionRef.current.start();
         setIsListening(true);
+        console.log('Started listening');
       } catch (e) {
         if (e.message.includes('already started')) {
           setIsListening(true);
+        } else {
+          console.error('Start error:', e.message);
         }
       }
     }
-  }, [isSpeaking, isActive]);
+  }, []);
 
   const handleUserMessage = useCallback(async (userText) => {
     if (!isActive || isProcessingRef.current || isSpeaking) return;
@@ -147,15 +151,18 @@ function VoiceControls({ onToolCall, imageUrl }) {
           }
         }
         if (finalTranscript) {
+          console.log('Got transcript:', finalTranscript);
           transcriptRef.current = finalTranscript;
         }
       };
 
       recognition.onend = () => {
+        console.log('Recognition ended, transcript:', transcriptRef.current, 'isPressing:', isPressing);
         setIsListening(false);
-        if (transcriptRef.current && isPressing) {
+        if (transcriptRef.current) {
           const text = transcriptRef.current;
           transcriptRef.current = '';
+          console.log('Processing message:', text);
           handleUserMessage(text);
         }
       };
@@ -179,8 +186,10 @@ function VoiceControls({ onToolCall, imageUrl }) {
     if (!isActive) return;
 
     const handleKeyDown = (e) => {
+      console.log('Key down:', e.code, 'repeat:', e.repeat, 'pressing:', isPressing, 'speaking:', isSpeaking);
       if (e.code === 'Space' && !e.repeat && !isPressing && !isSpeaking && !isProcessingRef.current) {
         e.preventDefault();
+        console.log('SPACEBAR PRESSED - Starting to listen');
         setIsPressing(true);
         transcriptRef.current = '';
         startListening();
@@ -188,8 +197,10 @@ function VoiceControls({ onToolCall, imageUrl }) {
     };
 
     const handleKeyUp = (e) => {
+      console.log('Key up:', e.code, 'pressing:', isPressing);
       if (e.code === 'Space' && isPressing) {
         e.preventDefault();
+        console.log('SPACEBAR RELEASED - Stopping');
         setIsPressing(false);
         stopListening();
       }
