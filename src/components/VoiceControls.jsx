@@ -15,6 +15,17 @@ function VoiceControls({ onToolCall, imageUrl }) {
   const recognitionRef = useRef(null);
   const isProcessingRef = useRef(false);
 
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        setIsListening(false);
+      } catch (e) {
+        // Already stopped
+      }
+    }
+  }, []);
+
   const speak = useCallback((text) => {
     return new Promise(async (resolve) => {
       try {
@@ -78,17 +89,6 @@ function VoiceControls({ onToolCall, imageUrl }) {
       }
     }
   }, [isSpeaking, isActive]);
-
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-        setIsListening(false);
-      } catch (e) {
-        // Already stopped
-      }
-    }
-  }, []);
 
   const handleUserMessage = useCallback(async (userText) => {
     if (!isActive || isProcessingRef.current || isSpeaking) return;
