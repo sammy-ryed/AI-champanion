@@ -26,7 +26,7 @@ app.post('/api/chat', async (req, res) => {
       conversations.set(sessionId, [
         {
           role: 'system',
-          content: `You are a friendly AI storyteller talking to a child. Keep responses short (2-3 sentences), engaging, and age-appropriate. Ask follow-up questions to keep the conversation going. The image shows: ${imageUrl ? 'a magical adventure scene' : 'an exciting story'}.`
+          content: `You are a friendly AI storyteller talking to a child. Keep responses short (2-3 sentences), engaging, and age-appropriate. Ask follow-up questions to keep the conversation going. When the conversation gets exciting or reaches a key moment, use the add_visual_effect function to enhance the experience. The image shows: ${imageUrl ? 'a magical adventure scene' : 'an exciting story'}.`
         }
       ]);
     }
@@ -34,17 +34,57 @@ app.post('/api/chat', async (req, res) => {
     const history = conversations.get(sessionId);
     history.push({ role: 'user', content: message });
 
+    const tools = [
+      {
+        type: 'function',
+        function: {
+          name: 'add_visual_effect',
+          description: 'Add a visual effect to the story image when something exciting happens',
+          parameters: {
+            type: 'object',
+            properties: {
+              effect: {
+                type: 'string',
+                enum: ['sparkle', 'glow', 'zoom'],
+                description: 'The type of visual effect to apply'
+              },
+              reason: {
+                type: 'string',
+                description: 'Why this effect enhances the story moment'
+              }
+            },
+            required: ['effect', 'reason']
+          }
+        }
+      }
+    ];
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: history,
       max_tokens: 100,
       temperature: 0.8,
+      tools: tools,
+      tool_choice: 'auto'
     });
 
-    const aiResponse = completion.choices[0].message.content;
+    const responseMessage = completion.choices[0].message;
+    let toolCall = null;
+
+    if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+      toolCall = {
+        name: responseMessage.tool_calls[0].function.name,
+        arguments: JSON.parse(responseMessage.tool_calls[0].function.arguments)
+      };
+    }
+
+    const aiResponse = responseMessage.content || "Let me show you something magical!";
     history.push({ role: 'assistant', content: aiResponse });
 
-    res.json({ response: aiResponse });
+    res.json({ 
+      response: aiResponse,
+      toolCall: toolCall
+    });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to process message' });

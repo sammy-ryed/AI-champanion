@@ -4,7 +4,7 @@ import './VoiceControls.css';
 
 const API_URL = 'http://localhost:3001/api';
 
-function VoiceControls() {
+function VoiceControls({ onToolCall }) {
   const [isActive, setIsActive] = useState(false);
   const [messages, setMessages] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -99,7 +99,13 @@ function VoiceControls() {
       });
 
       const aiResponse = response.data.response;
+      const toolCall = response.data.toolCall;
+      
       setMessages(prev => [...prev, { sender: 'AI', text: aiResponse, type: 'ai' }]);
+      
+      if (toolCall && onToolCall) {
+        onToolCall(toolCall);
+      }
       
       await speak(aiResponse);
       
