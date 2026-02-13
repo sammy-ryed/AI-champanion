@@ -4,7 +4,7 @@ import './VoiceControls.css';
 
 const API_URL = 'http://localhost:3001/api';
 
-function VoiceControls({ onToolCall }) {
+function VoiceControls({ onToolCall, imageUrl }) {
   const [isActive, setIsActive] = useState(false);
   const [messages, setMessages] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -68,7 +68,7 @@ function VoiceControls({ onToolCall }) {
     try {
       const response = await axios.post(`${API_URL}/start-conversation`, {
         sessionId: sessionId.current,
-        imageUrl: 'https://images.unsplash.com/photo-1518021857458-4c0d7c0ebba6'
+        imageUrl: imageUrl
       });
 
       const aiMessage = response.data.message;
@@ -95,7 +95,7 @@ function VoiceControls({ onToolCall }) {
       const response = await axios.post(`${API_URL}/chat`, {
         message: userText,
         sessionId: sessionId.current,
-        imageUrl: 'https://images.unsplash.com/photo-1518021857458-4c0d7c0ebba6'
+        imageUrl: imageUrl
       });
 
       const aiResponse = response.data.response;

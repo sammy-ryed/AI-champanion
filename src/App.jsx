@@ -19,6 +19,15 @@ function App() {
     }
   };
 
+  const storyImages = [
+    {
+      url: "https://images.unsplash.com/photo-1518021857458-4c0d7c0ebba6?w=800&q=80",
+      alt: "A magical forest adventure"
+    }
+  ];
+
+  const currentImage = storyImages[0];
+
   return (
     <div className="app-container">
       <header className="header">
@@ -29,8 +38,8 @@ function App() {
       <div className="content">
         <div className={`image-container ${imageEffect ? `effect-${imageEffect}` : ''}`}>
           <img 
-            src="https://images.unsplash.com/photo-1518021857458-4c0d7c0ebba6?w=800&q=80"
-            alt="A child's adventure story scene"
+            src={currentImage.url}
+            alt={currentImage.alt}
             className="story-image"
           />
           {effectLabel && (
@@ -38,7 +47,7 @@ function App() {
           )}
         </div>
         
-        <VoiceControls onToolCall={handleToolCall} />
+        <VoiceControls onToolCall={handleToolCall} imageUrl={currentImage.url} />
       </div>
     </div>
   )
