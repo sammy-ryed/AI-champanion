@@ -15,6 +15,7 @@ function VoiceControls({ onToolCall, imageUrl }) {
   const sessionId = useRef(Date.now().toString());
   const recognitionRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const transcriptRef = useRef('');
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
@@ -133,18 +134,29 @@ function VoiceControls({ onToolCall, imageUrl }) {
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
-      const recognition = new webkitSpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
+      const recognition = new wtrue;
+      recognition.interimResults = true;
       recognition.lang = 'en-US';
 
       recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        handleUserMessage(transcript);
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+          transcriptRef.current = finalTranscript;
+        }
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        if (transcriptRef.current && isPressing) {
+          const text = transcriptRef.current;
+          transcriptRef.current = '';
+          handleUserMessage(text);
+        }
       };
 
       recognition.onerror = (event) => {
@@ -155,11 +167,13 @@ function VoiceControls({ onToolCall, imageUrl }) {
       recognitionRef.current = recognition;
     }
 
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.onend = null;
+    return () => {e.repeat && !isPressing && !isSpeaking && !isProcessingRef.current) {
+        e.preventDefault();
+        setIsPressing(true);
+        transcriptRef.current = ''ent.onend = null;
       }
     };
+  }, [handleUserMessage, isPressing
   }, [handleUserMessage]);
 
   useEffect(() => {
