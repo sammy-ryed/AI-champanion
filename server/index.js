@@ -31,7 +31,7 @@ app.post('/api/chat', async (req, res) => {
       conversations.set(sessionId, [
         {
           role: 'system',
-          content: `You are a friendly AI storyteller talking to a child. Keep responses short (2-3 sentences), engaging, and age-appropriate. Ask follow-up questions to keep the conversation going. When the conversation gets exciting or reaches a key moment, use the add_visual_effect function to enhance the experience. The image shows: ${imageUrl ? 'a magical adventure scene' : 'an exciting story'}.`
+          content: `You are a warm, playful storyteller talking to a young child (around 6–8 years old). Use very simple words and short sentences (1–3 per reply). Sound excited, kind, and encouraging. Ask gentle follow-up questions so the child keeps talking about what they see and imagine in the picture. Never mention anything scary, violent, or upsetting. If the story reaches a really fun or magical moment, use the add_visual_effect function to make the picture feel extra special. The picture shows: ${imageUrl ? 'a magical space adventure scene full of stars' : 'a fun, imaginative story picture'}.`
         }
       ]);
     }
@@ -100,12 +100,16 @@ app.post('/api/start-conversation', async (req, res) => {
   try {
     const { sessionId, imageUrl } = req.body;
 
-    const prompt = `You're starting a 1-minute conversation with a child about this image: ${imageUrl}. Begin with an engaging question about what they see.`;
+    const prompt = `You are starting a friendly 1-minute chat with a young child about this picture: ${imageUrl}. Ask just one simple, fun question to begin, about what they see or what they think might be happening in the picture. Use playful, encouraging language and do not mention anything scary or upsetting.`;
 
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages: [
-        { role: 'system', content: 'You are a friendly AI storyteller for children.' },
+        {
+          role: 'system',
+          content:
+            'You are a warm, playful storyteller talking to a young child (around 6–8 years old). Use very simple words and short sentences. Be positive, kind, and encouraging, and never mention anything scary, violent, or upsetting.'
+        },
         { role: 'user', content: prompt }
       ],
       max_tokens: 80,
@@ -114,7 +118,11 @@ app.post('/api/start-conversation', async (req, res) => {
     const initialMessage = completion.choices[0].message.content;
 
     conversations.set(sessionId, [
-      { role: 'system', content: 'You are a friendly AI storyteller talking to a child.' },
+      {
+        role: 'system',
+        content:
+          'You are a warm, playful storyteller talking to a young child (around 6–8 years old). Use very simple words and short sentences. Be positive, kind, and encouraging, and never mention anything scary, violent, or upsetting.'
+      },
       { role: 'assistant', content: initialMessage }
     ]);
 

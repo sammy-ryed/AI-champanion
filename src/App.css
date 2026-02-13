@@ -3,13 +3,12 @@
   border-radius: 24px;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  backdrop-filter: blur(10px);
   min-height: 600px;
   width: 100%;
 }
 
 .header {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  background: #ffffff;
   color: white;
   padding: 2rem;
   text-align: center;
@@ -19,11 +18,13 @@
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
+  color: #111827;
 }
 
 .header p {
   opacity: 0.9;
   font-size: 1rem;
+  color: #4b5563;
 }
 
 .content {
@@ -86,8 +87,8 @@
   position: absolute;
   top: 1rem;
   right: 1rem;
-  background: rgba(236, 72, 153, 0.9);
-  color: white;
+  background: #e5e7eb;
+  color: #111827;
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.9rem;

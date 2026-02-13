@@ -31,8 +31,8 @@ function App() {
   return (
     <div className="app-container">
       <header className="header">
-        <h1>🌟 AI Story Time</h1>
-        <p>Let's explore stories together!</p>
+        <h1>Space Story Time</h1>
+        <p>Let&apos;s tell a fun story about this picture!</p>
       </header>
       
       <div className="content">
@@ -43,7 +43,7 @@ function App() {
             className="story-image"
           />
           {effectLabel && (
-            <div className="effect-badge">✨ {effectLabel}</div>
+            <div className="effect-badge">{effectLabel}</div>
           )}
         </div>
         

@@ -12,10 +12,10 @@
   --primary: #6366f1;
   --primary-dark: #4f46e5;
   --accent: #ec4899;
-  --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --card-bg: rgba(255, 255, 255, 0.95);
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.15);
+  --bg-color: #f3f4f6;
+  --card-bg: #ffffff;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
   
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -25,7 +25,7 @@
 
 body {
   min-height: 100vh;
-  background: var(--bg-gradient);
+  background: var(--bg-color);
   display: flex;
   align-items: center;
   justify-content: center;

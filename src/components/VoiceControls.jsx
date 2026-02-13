@@ -8,34 +8,20 @@ function VoiceControls({ onToolCall, imageUrl }) {
   const [isActive, setIsActive] = useState(false);
   const [messages, setMessages] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isPressing, setIsPressing] = useState(false);
-  
-  const sessionId = useRef(Date.now().toString());
-  const recognitionRef = useRef(null);
-  const isProcessingRef = useRef(false);
-  const transcriptRef = useRef('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [userInput, setUserInput] = useState('');
 
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-        setIsListening(false);
-        console.log('Stopped listening');
-      } catch (e) {
-        console.error('Stop error:', e.message);
-      }
-    }
-  }, []);
+  const sessionId = useRef(Date.now().toString());
+  const inputRef = useRef(null);
 
   const speak = useCallback((text) => {
     return new Promise(async (resolve) => {
       try {
         setIsSpeaking(true);
-        stopListening();
-        
-        const response = await axios.post(`${API_URL}/text-to-speech`, 
+
+        const response = await axios.post(
+          `${API_URL}/text-to-speech`,
           { text },
           { responseType: 'arraybuffer' }
         );
@@ -43,28 +29,27 @@ function VoiceControls({ onToolCall, imageUrl }) {
         const blob = new Blob([response.data], { type: 'audio/mpeg' });
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
-        
+
         audio.onended = () => {
           setIsSpeaking(false);
           URL.revokeObjectURL(audioUrl);
           resolve();
         };
-        
+
         audio.onerror = () => {
           setIsSpeaking(false);
           URL.revokeObjectURL(audioUrl);
           resolve();
         };
-        
+
         audio.play();
       } catch (error) {
         console.error('TTS Error:', error);
-        // Fallback to browser TTS
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
-        
+
         utterance.onend = () => {
           setIsSpeaking(false);
           resolve();
@@ -73,169 +58,64 @@ function VoiceControls({ onToolCall, imageUrl }) {
           setIsSpeaking(false);
           resolve();
         };
-        
+
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utterance);
       }
     });
-  }, [stopListening]);
-
-  const startListening = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-        console.log('Started listening');
-      } catch (e) {
-        if (e.message.includes('already started')) {
-          setIsListening(true);
-        } else {
-          console.error('Start error:', e.message);
-        }
-      }
-    }
   }, []);
 
-  const handleUserMessage = useCallback(async (userText) => {
-    if (!isActive || isProcessingRef.current || isSpeaking) return;
-    
-    isProcessingRef.current = true;
-    stopListening();
-    
-    setMessages(prev => [...prev, { sender: 'You', text: userText, type: 'user' }]);
+  const handleUserMessage = useCallback(
+    async (userText) => {
+      const text = userText.trim();
+      if (!isActive || !text || isProcessing) return;
 
-    try {
-      const response = await axios.post(`${API_URL}/chat`, {
-        message: userText,
-        sessionId: sessionId.current,
-        imageUrl: imageUrl
-      });
+      setIsProcessing(true);
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'You', text, type: 'user' }
+      ]);
 
-      const aiResponse = response.data.response;
-      const toolCall = response.data.toolCall;
-      
-      setMessages(prev => [...prev, { sender: 'AI', text: aiResponse, type: 'ai' }]);
-      
-      if (toolCall && onToolCall) {
-        onToolCall(toolCall);
-      }
-      
-      await speak(aiResponse);
-      
-      isProcessingRef.current = false;
-      
-      if (isActive) {
-        setTimeout(() => startListening(), 500);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      isProcessingRef.current = false;
-      if (isActive) {
-        setTimeout(() => startListening(), 500);
-      }
-    }
-  }, [isActive, isSpeaking, stopListening, speak, startListening, imageUrl, onToolCall]);
+      try {
+        const response = await axios.post(`${API_URL}/chat`, {
+          message: text,
+          sessionId: sessionId.current,
+          imageUrl: imageUrl,
+        });
 
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window) {
-      const recognition = new webkitSpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-      recognition.maxAlternatives = 1;
+        const aiResponse = response.data.response;
+        const toolCall = response.data.toolCall;
 
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        console.log('Got transcript:', transcript);
-        transcriptRef.current = transcript;
-      };
+        setMessages((prev) => [
+          ...prev,
+          { sender: 'Story Buddy', text: aiResponse, type: 'ai' },
+        ]);
 
-      recognition.onend = () => {
-        console.log('Recognition ended, transcript:', transcriptRef.current);
-        setIsListening(false);
-        
-        if (isPressing && !transcriptRef.current) {
-          // Still holding spacebar but no transcript yet, restart
-          console.log('Restarting recognition - still holding spacebar');
-          setTimeout(() => {
-            if (isPressing) {
-              startListening();
-            }
-          }, 100);
-        } else if (transcriptRef.current) {
-          const text = transcriptRef.current;
-          transcriptRef.current = '';
-          console.log('Processing message:', text);
-          handleUserMessage(text);
+        if (toolCall && onToolCall) {
+          onToolCall(toolCall);
         }
-      };
 
-      recognition.onerror = (event) => {
-        console.error('Recognition error:', event.error);
-        setIsListening(false);
-        
-        if (event.error === 'network' || event.error === 'audio-capture') {
-          console.warn(event.error + ' error - restarting in 200ms');
-          setTimeout(() => {
-            if (isPressing) {
-              startListening();
-            }
-          }, 200);
-        } else if (event.error === 'no-speech') {
-          console.log('No speech - restarting');
-          if (isPressing) {
-            setTimeout(() => startListening(), 100);
-          }
-        }
-      };
-
-      recognitionRef.current = recognition;
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.onend = null;
+        await speak(aiResponse);
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setIsProcessing(false);
       }
-    };
-  }, [handleUserMessage, isPressing, startListening]);
+    },
+    [isActive, isProcessing, imageUrl, onToolCall, speak]
+  );
 
-  useEffect(() => {
-    if (!isActive) return;
-
-    const handleKeyDown = (e) => {
-      console.log('Key down:', e.code, 'repeat:', e.repeat, 'pressing:', isPressing, 'speaking:', isSpeaking);
-      if (e.code === 'Space' && !e.repeat && !isPressing && !isSpeaking && !isProcessingRef.current) {
-        e.preventDefault();
-        console.log('SPACEBAR PRESSED - Starting to listen');
-        setIsPressing(true);
-        transcriptRef.current = '';
-        startListening();
-      }
-    };
-
-    const handleKeyUp = (e) => {
-      console.log('Key up:', e.code, 'pressing:', isPressing);
-      if (e.code === 'Space' && isPressing) {
-        e.preventDefault();
-        console.log('SPACEBAR RELEASED - Stopping');
-        setIsPressing(false);
-        stopListening();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [isActive, isPressing, isSpeaking, startListening, stopListening]);
+  const sendCurrentInput = useCallback(() => {
+    if (!userInput.trim()) return;
+    const text = userInput;
+    setUserInput('');
+    handleUserMessage(text);
+  }, [userInput, handleUserMessage]);
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
       const timer = setInterval(() => {
-        setTimeLeft(prev => {
+        setTimeLeft((prev) => {
           if (prev <= 1) {
             handleEnd();
             return 0;
@@ -247,33 +127,42 @@ function VoiceControls({ onToolCall, imageUrl }) {
     }
   }, [isActive, timeLeft]);
 
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleKeyDown = (e) => {
+      if (
+        e.code === 'Space' &&
+        !e.repeat &&
+        document.activeElement !== inputRef.current
+      ) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isActive]);
+
   const handleStart = async () => {
     setIsActive(true);
     setTimeLeft(60);
     setMessages([]);
-    isProcessingRef.current = false;
-
-    // Request microphone permission
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('Microphone permission granted');
-    } catch (err) {
-      console.error('Microphone permission denied:', err);
-      alert('Please allow microphone access to use voice chat!');
-      setIsActive(false);
-      return;
-    }
 
     try {
       const response = await axios.post(`${API_URL}/start-conversation`, {
         sessionId: sessionId.current,
-        imageUrl: imageUrl
+        imageUrl: imageUrl,
       });
 
       const aiMessage = response.data.message;
-      setMessages([{ sender: 'AI', text: aiMessage, type: 'ai' }]);
-      
+      setMessages([{ sender: 'Story Buddy', text: aiMessage, type: 'ai' }]);
+
       await speak(aiMessage);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 300);
     } catch (error) {
       console.error('Error starting:', error);
     }
@@ -281,38 +170,76 @@ function VoiceControls({ onToolCall, imageUrl }) {
 
   const handleEnd = () => {
     setIsActive(false);
-    stopListening();
-    isProcessingRef.current = false;
+    setIsProcessing(false);
     window.speechSynthesis.cancel();
   };
+
+  const statusText = !isActive
+    ? ''
+    : isSpeaking
+    ? 'Your story buddy is talking...'
+    : isProcessing
+    ? 'Your story buddy is thinking...'
+    : 'Press Space to start typing, then Enter to send';
 
   return (
     <div className="controls-section">
       {!isActive ? (
         <button className="start-button" onClick={handleStart}>
-          <span className="button-icon">🎙️</span>
-          <span className="button-text">Start Conversation</span>
+          <span className="button-text">Start Story</span>
         </button>
       ) : (
         <>
           <div className="status-bar">
-            <div className={`mic-indicator ${isListening ? 'active' : ''}`}>
-              {isListening ? '🎤 Listening...' : isSpeaking ? '🔊 Speaking...' : '⌨️ Hold Space to Talk'}
+            <div
+              className={`mic-indicator ${
+                isSpeaking || isProcessing ? 'active' : ''
+              }`}
+            >
+              {statusText}
             </div>
             <div className="timer-badge">{timeLeft}s</div>
-            <button className="stop-button" onClick={handleEnd}>Stop</button>
+            <button className="stop-button" onClick={handleEnd}>
+              End Story
+            </button>
           </div>
 
           <div className="messages-container">
             {messages.map((msg, index) => (
               <div key={index} className={`message-bubble ${msg.type}`}>
-                <div className="message-avatar">{msg.type === 'ai' ? '🤖' : '👤'}</div>
+                <div className="message-avatar">
+                  {msg.type === 'ai' ? 'SB' : 'You'}
+                </div>
                 <div className="message-content">
                   <div className="message-sender">{msg.sender}</div>
                   <div className="message-text">{msg.text}</div>
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="input-row">
+            <input
+              ref={inputRef}
+              className="user-input"
+              type="text"
+              placeholder="Press Space, type your answer, then press Enter"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendCurrentInput();
+                }
+              }}
+            />
+            <button
+              className="send-button"
+              onClick={sendCurrentInput}
+              disabled={!userInput.trim() || isProcessing || isSpeaking}
+            >
+              Send
+            </button>
           </div>
         </>
       )}
