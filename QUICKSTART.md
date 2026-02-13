@@ -6,6 +6,7 @@ Get the AI Storyteller running in 3 minutes!
 
 - Node.js 16+ installed
 - Groq API key ([Get one here](https://console.groq.com))
+- ElevenLabs API key ([Get one here](https://elevenlabs.io))
 - Chrome or Edge browser (for best speech recognition)
 
 ## Setup Steps
@@ -28,6 +29,7 @@ cp .env.example .env
 Your `.env` should look like:
 ```
 GROQ_API_KEY=gsk-your-actual-key-here
+ELEVENLABS_API_KEY=your-elevenlabs-key
 PORT=3001
 ```
 
@@ -71,10 +73,11 @@ Navigate to: **http://localhost:5173**
 - Allow permissions in browser
 - Use Chrome or Edge (best support)
 - Check system microphone is working
+- The app keeps listening - speak anytime you see "🎤 Listening..."
 
 ### "Invalid API key" error?
-- Verify Groq API key in `.env`
-- Make sure it starts with `gsk-`
+- Verify both Groq and ElevenLabs API keys in `.env`
+- Groq key starts with `gsk-`
 - Restart the server after changing `.env`
 
 ### Speech recognition not working?

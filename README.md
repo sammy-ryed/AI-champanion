@@ -15,19 +15,22 @@ An interactive AI-powered storytelling experience that engages children through 
 
 **Frontend:**
 - React 19 + Vite
-- Web Speech API (Speech Recognition & Synthesis)
+- Web Speech API (Speech Recognition)
+- ElevenLabs (Text-to-Speech)
 - Axios for API calls
 - CSS3 animations
 
 **Backend:**
 - Node.js + Express
 - Groq (Llama 3.3 70B) - Ultra-fast inference
+- ElevenLabs SDK - Natural voice synthesis
 - Function calling for UI interactions
 
 ## Prerequisites
 
 - Node.js 16+ and npm
 - Groq API key
+- ElevenLabs API key (for natural voice TTS)
 - Modern browser with Web Speech API support (Chrome recommended)
 
 ## Setup
@@ -41,9 +44,10 @@ npm install
 ```bash
 cp .env.example .env
 ```
-Then edit `.env` and add your Groq API key:
+Then edit `.env` and add your API keys:
 ```
 GROQ_API_KEY=your_key_here
+ELEVENLABS_API_KEY=your_elevenlabs_key_here
 PORT=3001
 ```
 
