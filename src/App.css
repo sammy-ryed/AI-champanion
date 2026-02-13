@@ -4,6 +4,8 @@
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   backdrop-filter: blur(10px);
+  min-height: 600px;
+  width: 100%;
 }
 
 .header {
