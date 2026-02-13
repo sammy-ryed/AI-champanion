@@ -139,28 +139,30 @@ function VoiceControls({ onToolCall, imageUrl }) {
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new webkitSpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.interimResults = false;
       recognition.lang = 'en-US';
       recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          }
-        }
-        if (finalTranscript) {
-          console.log('Got transcript:', finalTranscript);
-          transcriptRef.current = finalTranscript;
-        }
+        const transcript = event.results[0][0].transcript;
+        console.log('Got transcript:', transcript);
+        transcriptRef.current = transcript;
       };
 
       recognition.onend = () => {
-        console.log('Recognition ended, transcript:', transcriptRef.current, 'isPressing:', isPressing);
+        console.log('Recognition ended, transcript:', transcriptRef.current);
         setIsListening(false);
-        if (transcriptRef.current) {
+        
+        if (isPressing && !transcriptRef.current) {
+          // Still holding spacebar but no transcript yet, restart
+          console.log('Restarting recognition - still holding spacebar');
+          setTimeout(() => {
+            if (isPressing) {
+              startListening();
+            }
+          }, 100);
+        } else if (transcriptRef.current) {
           const text = transcriptRef.current;
           transcriptRef.current = '';
           console.log('Processing message:', text);
@@ -172,17 +174,18 @@ function VoiceControls({ onToolCall, imageUrl }) {
         console.error('Recognition error:', event.error);
         setIsListening(false);
         
-        if (event.error === 'network') {
-          console.warn('Network error - restarting recognition');
+        if (event.error === 'network' || event.error === 'audio-capture') {
+          console.warn(event.error + ' error - restarting in 200ms');
           setTimeout(() => {
             if (isPressing) {
               startListening();
             }
-          }, 100);
+          }, 200);
         } else if (event.error === 'no-speech') {
-          console.log('No speech detected, continuing...');
-        } else if (event.error === 'aborted') {
-          console.log('Recognition aborted');
+          console.log('No speech - restarting');
+          if (isPressing) {
+            setTimeout(() => startListening(), 100);
+          }
         }
       };
 
@@ -194,7 +197,7 @@ function VoiceControls({ onToolCall, imageUrl }) {
         recognitionRef.current.onend = null;
       }
     };
-  }, [handleUserMessage, isPressing]);
+  }, [handleUserMessage, isPressing, startListening]);
 
   useEffect(() => {
     if (!isActive) return;
