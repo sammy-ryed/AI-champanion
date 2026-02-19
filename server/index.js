@@ -71,9 +71,9 @@ RULES — follow every single one:
 4. Be excited, warm, and encouraging. Never scary.
 
 TOOL USAGE — you MUST use tools regularly:
-- call add_visual_effect on exciting moments (sparkle=magic, glow=happy, zoom=action)
-- call change_scene after every 2–3 exchanges to move the adventure to a new place (available: ${SCENE_KEYS.filter(k => k !== sceneId).join(', ')})
-- You can call a tool AND write text in the same response — always do both
+- Call add_visual_effect on exciting moments (sparkle=magic, glow=happy, zoom=action)
+- Call change_scene after every 2–3 exchanges to move the adventure to a new place (available: ${SCENE_KEYS.filter(k => k !== sceneId).join(', ')})
+- CRITICAL: NEVER write function names, tool names, or JSON in your spoken text. Tools are invisible background actions. Your text must read as natural speech only.
 
 STORY FLOW: The child is the hero. Build on exactly what they said. Keep the adventure going!`;
 }
@@ -111,14 +111,23 @@ const TOOLS = [
   }
 ];
 
-// Strip hallucinated <function=...>...</function> or <function=...{...}/> tags
-// that Llama sometimes embeds in text content instead of using proper tool_calls
+// Strip ALL hallucinated function call patterns that Llama embeds in text
+// instead of using proper tool_calls
 function cleanContent(text) {
   if (!text) return text;
   return text
-    .replace(/<function=[^>]*?\{[^}]*?\}[^<]*?<\/function>/gs, '')
-    .replace(/<function=[^/]*?\/>/gs, '')
-    .replace(/<function=[^>]*?>[^<]*?<\/function>/gs, '')
+    // <function=name ...>...</function>  or  <function=name/>
+    .replace(/<function=[^>]*?(?:\/?>.*?<\/function>|\/?>)/gs, '')
+    // add_visual_effect({...}) or add_visual_effect(word)
+    .replace(/\badd_visual_effect\s*[({][^)}]*[)}]/g, '')
+    // change_scene({...}) or change_scene(word)
+    .replace(/\bchange_scene\s*[({][^)}]*[)}]/g, '')
+    // [function: name(...)] or [name: {...}]
+    .replace(/\[(?:function:\s*)?(?:add_visual_effect|change_scene)[^\]]*\]/g, '')
+    // any remaining bare tool names with attached JSON braces
+    .replace(/\b(?:add_visual_effect|change_scene)\s*\{[^}]*\}/g, '')
+    // clean up double spaces / leading-trailing whitespace
+    .replace(/  +/g, ' ')
     .trim();
 }
 
@@ -290,8 +299,9 @@ app.post('/api/text-to-speech', async (req, res) => {
 
     const audio = await elevenlabs.textToSpeech.convert('21m00Tcm4TlvDq8ikWAM', {
       text,
-      model_id: 'eleven_turbo_v2_5',
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      modelId: 'eleven_flash_v2_5',                       // faster than turbo (~2× lower latency)
+      voiceSettings: { stability: 0.5, similarityBoost: 0.75 },
+      optimizeStreamingLatency: 3                          // max latency reduction
     });
 
     res.set({

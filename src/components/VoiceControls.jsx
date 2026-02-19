@@ -53,16 +53,78 @@ function VoiceControls({ onToolCall }) {
     return new Promise(async (resolve) => {
       try {
         setIsSpeaking(true);
-        const response = await axios.post(
-          `${API_URL}/text-to-speech`, { text },
-          { responseType: 'arraybuffer' }
-        );
-        const blob     = new Blob([response.data], { type: 'audio/mpeg' });
-        const audioUrl = URL.createObjectURL(blob);
-        const audio    = new Audio(audioUrl);
-        audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(audioUrl); resolve(); };
-        audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(audioUrl); resolve(); };
-        audio.play();
+
+        const response = await fetch(`${API_URL}/text-to-speech`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+
+        if (!response.ok || !response.body) throw new Error('TTS failed');
+
+        // MediaSource streaming: audio starts playing on the very first chunk
+        // instead of waiting for the whole file to download
+        const mediaSource = new MediaSource();
+        const audioUrl    = URL.createObjectURL(mediaSource);
+        const audio       = new Audio(audioUrl);
+
+        const cleanup = () => { setIsSpeaking(false); URL.revokeObjectURL(audioUrl); resolve(); };
+        audio.onended = cleanup;
+        audio.onerror = cleanup;
+
+        mediaSource.addEventListener('sourceopen', async () => {
+          let sb;
+          try {
+            sb = mediaSource.addSourceBuffer('audio/mpeg');
+          } catch {
+            // Browser doesn't support audio/mpeg in MediaSource — fall back to full buffer
+            const data = await response.arrayBuffer();
+            URL.revokeObjectURL(audioUrl);
+            const fbUrl = URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
+            const fb    = new Audio(fbUrl);
+            fb.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(fbUrl); resolve(); };
+            fb.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(fbUrl); resolve(); };
+            fb.play().catch(console.error);
+            return;
+          }
+
+          const reader  = response.body.getReader();
+          let started   = false;
+
+          const pump = async () => {
+            try {
+              const { done, value } = await reader.read();
+
+              if (done) {
+                if (sb.updating) {
+                  await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
+                }
+                try { mediaSource.endOfStream(); } catch (_) {}
+                return;
+              }
+
+              if (sb.updating) {
+                await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
+              }
+              sb.appendBuffer(value);
+
+              // Start playback immediately on first chunk — no waiting for full file
+              if (!started) {
+                started = true;
+                audio.play().catch(console.error);
+              }
+
+              await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
+              pump();
+            } catch (e) {
+              console.error('Chunk error:', e);
+              try { mediaSource.endOfStream('decode'); } catch (_) {}
+            }
+          };
+
+          pump();
+        });
+
       } catch (err) {
         console.error('TTS error:', err);
         setIsSpeaking(false);
