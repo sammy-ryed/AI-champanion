@@ -1,4 +1,4 @@
-/* ── Voice Controls ──────────────────────────────────────────────────────── */
+﻿/* ── Voice Controls ──────────────────────────────────────────────────────── */
 .vc-root {
   flex: 1;
   display: flex;
@@ -273,5 +273,3 @@
 .btn-send:hover:not(:disabled)  { background: #1f2937; }
 .btn-send:active:not(:disabled) { transform: scale(0.97); }
 .btn-send:disabled { opacity: 0.45; cursor: not-allowed; }
-
-
