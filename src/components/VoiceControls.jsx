@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import './VoiceControls.css';
 
-const API_URL = 'http://localhost:3001/api';
+// In dev: talk to the Vite dev server proxy / Express on 3001
+// In production: same origin (Express serves the built files)
+const API_URL = import.meta.env.DEV ? 'http://localhost:3001/api' : '/api';
 
 // Split mixed bilingual text into styled segments.
 // Handles both "(Hindi in parens)" format and inline Devanagari words.
