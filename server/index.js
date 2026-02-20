@@ -417,8 +417,8 @@ app.listen(PORT, () => {
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  // SPA fallback — all non-API routes return index.html
-  app.get('*', (req, res) => {
+  // SPA fallback — all non-API routes return index.html (Express 5 wildcard syntax)
+  app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
