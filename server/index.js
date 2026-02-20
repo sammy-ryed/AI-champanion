@@ -19,35 +19,54 @@ app.use(express.json());
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
 
+// ElevenLabs voice — auto-detect an Indian accent voice at startup, fallback to Rachel
+let VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
+(async () => {
+  try {
+    const result = await elevenlabs.voices.getAll();
+    const list   = result?.voices || [];
+    const indian = list.find(v =>
+      v.labels?.accent?.toLowerCase().includes('indian') ||
+      /meera|priya|neerja|ananya/i.test(v.name || '')
+    );
+    if (indian) {
+      VOICE_ID = indian.voice_id;
+      console.log(`Indian voice found: ${indian.name} (${VOICE_ID})`);
+    } else {
+      console.log('No Indian accent voice found on your account — using default voice. Add one on elevenlabs.io and set ELEVENLABS_VOICE_ID in .env.');
+    }
+  } catch (_) { /* keep default */ }
+})();
+
 // Available story scenes
 export const SCENES = {
   space: {
     id: 'space',
-    url: 'https://cdn.pixabay.com/photo/2016/11/29/05/45/astronomy-1867616_1280.jpg',
+    url: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1280&q=80&auto=format',
     description: 'a breathtaking space scene with colorful galaxies, twinkling stars, and glowing nebulae',
     label: 'Outer Space'
   },
   ocean: {
     id: 'ocean',
-    url: 'https://cdn.pixabay.com/photo/2017/01/20/00/30/maldives-1993704_1280.jpg',
+    url: 'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=1280&q=80&auto=format',
     description: 'a crystal-clear tropical ocean with colorful fish, coral reefs, and gentle waves',
     label: 'Ocean World'
   },
   forest: {
     id: 'forest',
-    url: 'https://cdn.pixabay.com/photo/2015/09/09/16/05/forest-931706_1280.jpg',
+    url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1280&q=80&auto=format',
     description: 'a magical enchanted forest with golden rays of sunlight through tall trees and mysterious paths',
     label: 'Enchanted Forest'
   },
   castle: {
     id: 'castle',
-    url: 'https://cdn.pixabay.com/photo/2016/01/09/18/27/journey-1130732_1280.jpg',
-    description: 'a grand castle on a hilltop with rolling green fields and a big bright sky',
+    url: 'https://images.unsplash.com/photo-1599930113854-d6d7fd521f10?w=1280&q=80&auto=format',
+    description: 'a grand medieval castle on a hilltop with rolling green fields and a big bright sky',
     label: 'Magic Kingdom'
   },
   mountains: {
     id: 'mountains',
-    url: 'https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885_1280.jpg',
+    url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1280&q=80&auto=format',
     description: 'a stunning mountain landscape with snowy peaks, green meadows, and a clear blue sky',
     label: 'Mountain Adventure'
   }
@@ -58,24 +77,49 @@ const SCENE_KEYS = Object.keys(SCENES);
 // Store per-session state: { history, currentScene }
 const conversations = new Map();
 
+// ── Safety pre-filter ─────────────────────────────────────────────────────
+// Crude words a child should not be using — redirect gently without repeating them
+const INAPPROPRIATE_PATTERNS = [
+  /\bgand\b/i, /\bgandu\b/i, /\bchut\b/i, /\bmadarchod\b/i, /\bbhench?od\b/i,
+  /\bsaala\b/i, /\bkamina\b/i, /\bkutiya\b/i, /\bharam(i|zada)\b/i,
+  /\bf+u+c+k+\b/i, /\bs+h+i+t+\b/i, /\bb+i+t+c+h+\b/i, /\bass\b/i,
+  /\bdamn\b/i, /\bcrap\b/i, /\bhell\b/i, /\bstupid\b/i, /\bidiot\b/i,
+  /mar lo/i, /maa ki/i, /teri maa/i
+];
+
+function containsInappropriate(text) {
+  return INAPPROPRIATE_PATTERNS.some(p => p.test(text));
+}
+
 function buildSystemPrompt(sceneId) {
   const scene = SCENES[sceneId] || SCENES.space;
-  return `You are Cosmo, a fun and enthusiastic storytelling buddy for young children aged 5–8.
+  return `You are Cosmo, a warm and enthusiastic bilingual storytelling buddy for Indian children aged 5–8.
 
 CURRENT SCENE: ${scene.description} ("${scene.label}").
 
-RULES — follow every single one:
-1. ALWAYS write 1–3 short, cheerful sentences in your reply. NEVER return empty text.
-2. End EVERY reply with exactly ONE simple question for the child.
-3. Use easy words a 6-year-old knows.
-4. Be excited, warm, and encouraging. Never scary.
+LANGUAGE RULES — follow strictly for every single sentence:
+1. Say EVERY sentence in English first, then immediately add the Hindi translation in parentheses.
+   Format exactly like this: "Wow, look at those shiny stars! (वाह, देखो वो चमकदार तारे!) What do you see? (तुम क्या देख रहे हो?)"
+2. If the child writes or speaks in Hindi, warmly say "Bahut acha! (बहुत अच्छा!)" then gently teach the English words: "In English we say: [phrase]! (अंग्रेज़ी में हम कहते हैं: [phrase]!)"
+3. Use simple English words a 5-year-old knows. Speak like a friendly Indian maasi or didi.
 
-TOOL USAGE — you MUST use tools regularly:
-- Call add_visual_effect on exciting moments (sparkle=magic, glow=happy, zoom=action)
-- Call change_scene after every 2–3 exchanges to move the adventure to a new place (available: ${SCENE_KEYS.filter(k => k !== sceneId).join(', ')})
-- CRITICAL: NEVER write function names, tool names, or JSON in your spoken text. Tools are invisible background actions. Your text must read as natural speech only.
+REPLY RULES:
+1. Write 2–3 short bilingual sentences + 1 bilingual question. NEVER return empty text.
+2. Be excited, warm, and encouraging. Never scary.
 
-STORY FLOW: The child is the hero. Build on exactly what they said. Keep the adventure going!`;
+SCENE-SWITCHING — IMMEDIATELY change scene when the child mentions these topics:
+• fish, sea, water, ocean, whale, dolphin, crab, coral, mermaid, seahorse → change to "ocean"
+• trees, animals, lion, tiger, elephant, jungle, birds, monkey, deer, bear → change to "forest"
+• castle, princess, dragon, knight, king, queen, palace, magic wand → change to "castle"
+• mountains, snow, climb, hill, cold, hiking, peak, glacier → change to "mountains"
+• rocket, stars, planet, alien, galaxy, spacecraft, astronaut, moon → change to "space"
+Also call change_scene every 2–3 exchanges to keep the adventure fresh (available: ${SCENE_KEYS.filter(k => k !== sceneId).join(', ')}).
+
+TOOL USAGE:
+- Call add_visual_effect on magical moments (sparkle=magic, glow=happy, zoom=action)
+- CRITICAL: NEVER write function names, tool names, or JSON in your spoken text. Tools are invisible.
+
+STORY FLOW: The child is the hero. Build on exactly what they said!`;
 }
 
 const TOOLS = [
@@ -111,6 +155,15 @@ const TOOLS = [
   }
 ];
 
+// For TTS: flatten parenthesised Hindi into inline text so speech flows naturally
+function toTTSText(text) {
+  if (!text) return text;
+  return text
+    .replace(/\(([^)]+)\)/g, ' $1 ')
+    .replace(/  +/g, ' ')
+    .trim();
+}
+
 // Strip ALL hallucinated function call patterns that Llama embeds in text
 // instead of using proper tool_calls
 function cleanContent(text) {
@@ -143,82 +196,113 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const session = conversations.get(sessionId);
+
+    // ── Safety pre-filter ────────────────────────────────────────────────
+    if (containsInappropriate(message)) {
+      const safeReply = 'Are yaar, we don\'t say things like that! Cosmo only goes on adventures with kind explorers. Chalo, should we find something magical instead?';
+      session.history.push({ role: 'user', content: '[inappropriate input filtered]' });
+      session.history.push({ role: 'assistant', content: safeReply });
+      return res.json({ response: safeReply, ttsText: safeReply, toolCall: null, currentScene: session.currentScene });
+    }
+
     session.history.push({ role: 'user', content: message });
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: session.history,
-      max_tokens: 150,
-      temperature: 0.9,
-      tools: TOOLS,
-      tool_choice: 'auto'
-    });
+    let toolCall    = null;
+    let aiResponse  = null;
 
-    const responseMessage = completion.choices[0].message;
-    let toolCall = null;
-
-    if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-      const raw = responseMessage.tool_calls[0];
-      const name = raw.function.name;
-      const args = JSON.parse(raw.function.arguments);
-      toolCall = { name, arguments: args };
-
-      if (name === 'change_scene' && SCENES[args.scene]) {
-        session.currentScene = args.scene;
-        session.history[0] = { role: 'system', content: buildSystemPrompt(args.scene) };
+    // ── Helper: salvage text + scene from a failed_generation string ──────
+    const salvageFromFailedGen = (failedGen) => {
+      if (!failedGen) return;
+      // Extract scene from <function=change_scene>{"scene":"ocean",...}
+      const sceneMatch = failedGen.match(/<function=change_scene[^>]*>\s*\{[^}]*"scene"\s*:\s*"([^"]+)"/);
+      if (sceneMatch && SCENES[sceneMatch[1]]) {
+        const newScene = sceneMatch[1];
+        toolCall = { name: 'change_scene', arguments: { scene: newScene, transition_line: '' } };
+        session.currentScene = newScene;
+        session.history[0]   = { role: 'system', content: buildSystemPrompt(newScene) };
       }
-    }
+      // Extract scene from <function=add_visual_effect>{"effect":"sparkle",...}
+      const fxMatch = failedGen.match(/<function=add_visual_effect[^>]*>\s*\{[^}]*"effect"\s*:\s*"([^"]+)"/);
+      if (fxMatch && !toolCall) {
+        toolCall = { name: 'add_visual_effect', arguments: { effect: fxMatch[1], reason: '' } };
+      }
+      // Strip the broken function tag from text
+      aiResponse = cleanContent(failedGen);
+    };
 
-    let aiResponse = cleanContent(responseMessage.content);
+    // ── First attempt: with tools ─────────────────────────────────────────
+    try {
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: session.history,
+        max_tokens: 200,
+        temperature: 0.9,
+        tools: TOOLS,
+        tool_choice: 'auto'
+      });
 
-    // When the model returns tool_calls with no text, do a follow-up call
-    // WITHOUT tools so it can't fail with tool_use_failed
-    if (!aiResponse && toolCall) {
-      try {
-        const followUpMessages = [
-          ...session.history,
-          {
-            role: 'assistant',
-            content: null,
-            tool_calls: responseMessage.tool_calls
-          },
-          {
-            role: 'tool',
-            tool_call_id: responseMessage.tool_calls[0].id,
-            content: 'done'
-          }
-        ];
+      const responseMessage = completion.choices[0].message;
 
+      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+        const raw  = responseMessage.tool_calls[0];
+        const name = raw.function.name;
+        const args = JSON.parse(raw.function.arguments);
+        toolCall   = { name, arguments: args };
+
+        if (name === 'change_scene' && SCENES[args.scene]) {
+          session.currentScene = args.scene;
+          session.history[0]   = { role: 'system', content: buildSystemPrompt(args.scene) };
+        }
+      }
+
+      aiResponse = cleanContent(responseMessage.content);
+
+      // Tool called but no text → follow-up without tools to get spoken reply
+      if (!aiResponse && toolCall) {
         const followUp = await groq.chat.completions.create({
           model: 'llama-3.3-70b-versatile',
-          messages: followUpMessages,
-          max_tokens: 120,
-          temperature: 0.9
-          // no tools — prevents tool_use_failed 400 errors
-        });
-
-        aiResponse = cleanContent(followUp.choices[0].message.content);
-      } catch (followUpErr) {
-        console.error('Follow-up error:', followUpErr?.error?.error?.message || followUpErr.message);
-        // Generate a simple reply with a plain call, no tools at all
-        const simple = await groq.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
           messages: [
-            { role: 'system', content: buildSystemPrompt(session.currentScene) },
-            { role: 'user', content: message }
+            ...session.history,
+            { role: 'assistant', content: null, tool_calls: responseMessage.tool_calls },
+            { role: 'tool', tool_call_id: responseMessage.tool_calls[0].id, content: 'done' }
           ],
-          max_tokens: 100,
+          max_tokens: 200,
           temperature: 0.9
+          // no tools here — prevents cascading tool_use_failed
         });
-        aiResponse = cleanContent(simple.choices[0].message.content);
+        aiResponse = cleanContent(followUp.choices[0].message.content);
+      }
+
+    } catch (firstErr) {
+      const isToolFail = firstErr?.status === 400 &&
+        firstErr?.error?.error?.code === 'tool_use_failed';
+
+      if (isToolFail) {
+        // Salvage text + scene from the partial generation Groq returns
+        salvageFromFailedGen(firstErr?.error?.error?.failed_generation);
+        console.warn('tool_use_failed — salvaged from failed_generation');
+
+        // If salvage got nothing, do a clean no-tools retry
+        if (!aiResponse) {
+          const retry = await groq.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: session.history,
+            max_tokens: 200,
+            temperature: 0.9
+            // no tools at all
+          });
+          aiResponse = cleanContent(retry.choices[0].message.content);
+        }
+      } else {
+        throw firstErr; // re-throw unrelated errors
       }
     }
 
-    if (!aiResponse) aiResponse = "That sounds amazing! What happens next?";
+    if (!aiResponse) aiResponse = 'Bahut maja aa raha hai! (बहुत मजा आ रहा है!) What shall we do next? (हम आगे क्या करें?)';
 
     session.history.push({ role: 'assistant', content: aiResponse });
 
-    res.json({ response: aiResponse, toolCall, currentScene: session.currentScene });
+    res.json({ response: aiResponse, ttsText: toTTSText(aiResponse), toolCall, currentScene: session.currentScene });
   } catch (error) {
     console.error('Chat error:', error);
     res.status(500).json({ error: 'Failed to process message' });
@@ -229,7 +313,8 @@ app.post('/api/start-conversation', async (req, res) => {
   try {
     const { sessionId } = req.body;
 
-    const startScene = 'space';
+    // Pick a random scene each time so every adventure feels fresh
+    const startScene = SCENE_KEYS[Math.floor(Math.random() * SCENE_KEYS.length)];
     const scene = SCENES[startScene];
 
     const systemPrompt = buildSystemPrompt(startScene);
@@ -255,7 +340,7 @@ app.post('/api/start-conversation', async (req, res) => {
       ]
     });
 
-    res.json({ message: initialMessage, currentScene: startScene });
+    res.json({ message: initialMessage, ttsText: toTTSText(initialMessage), currentScene: startScene });
   } catch (error) {
     console.error('Start error:', error);
     res.status(500).json({ error: 'Failed to start conversation' });
@@ -280,7 +365,8 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
     const transcription = await groq.audio.transcriptions.create({
       file: fs.createReadStream(tmpPath),
       model: 'whisper-large-v3-turbo',
-      language: 'en',
+      // prompt hint tells Whisper to expect only Hindi or English
+      prompt: 'The child is speaking in either Hindi or English.',
       response_format: 'json'
     });
 
@@ -297,11 +383,11 @@ app.post('/api/text-to-speech', async (req, res) => {
   try {
     const { text } = req.body;
 
-    const audio = await elevenlabs.textToSpeech.convert('21m00Tcm4TlvDq8ikWAM', {
+    const audio = await elevenlabs.textToSpeech.convert(VOICE_ID, {
       text,
-      modelId: 'eleven_flash_v2_5',                       // faster than turbo (~2× lower latency)
+      modelId: 'eleven_multilingual_v2',   // required for Hindi + English bilingual speech
       voiceSettings: { stability: 0.5, similarityBoost: 0.75 },
-      optimizeStreamingLatency: 3                          // max latency reduction
+      optimizeStreamingLatency: 3
     });
 
     res.set({

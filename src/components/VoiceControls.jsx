@@ -4,6 +4,33 @@ import './VoiceControls.css';
 
 const API_URL = 'http://localhost:3001/api';
 
+// Split mixed bilingual text into styled segments.
+// Handles both "(Hindi in parens)" format and inline Devanagari words.
+function parseMessage(text) {
+  const segments = [];
+  // Split on runs of Devanagari (and any surrounding parens/spaces)
+  const regex = /(\(?)([^\u0900-\u097F()\n]+)(\)?)|([\u0900-\u097F][\u0900-\u097F\s\u0964\u0965]*[\u0900-\u097F।?!,]*)/g;
+  let last = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) {
+      const gap = text.slice(last, match.index).trim();
+      if (gap) segments.push({ type: 'en', text: gap });
+    }
+    if (match[4]) {
+      // pure Devanagari run
+      segments.push({ type: 'hi', text: match[4].trim() });
+    } else if (match[2]) {
+      const en = match[2].trim().replace(/^[()]+|[()]+$/g, '');
+      if (en) segments.push({ type: 'en', text: en });
+    }
+    last = match.index + match[0].length;
+  }
+  const tail = text.slice(last).trim();
+  if (tail) segments.push({ type: 'en', text: tail });
+  return segments.filter(s => s.text).length ? segments.filter(s => s.text) : [{ type: 'en', text }];
+}
+
 function VoiceControls({ onToolCall }) {
   const [isActive, setIsActive]         = useState(false);
   const [messages, setMessages]         = useState([]);
@@ -146,10 +173,10 @@ function VoiceControls({ onToolCall }) {
         message: trimmed,
         sessionId: sessionId.current,
       });
-      const { response: aiText, toolCall } = res.data;
+      const { response: aiText, ttsText, toolCall } = res.data;
       setMessages(prev => [...prev, { sender: 'ai', text: aiText }]);
       if (toolCall && onToolCall) onToolCall(toolCall);
-      await speak(aiText);
+      await speak(ttsText || aiText);
     } catch (err) {
       console.error('Chat error:', err);
       setMessages(prev => [...prev, { sender: 'ai', text: "Oops! Try again!" }]);
@@ -285,9 +312,13 @@ function VoiceControls({ onToolCall }) {
       const res = await axios.post(`${API_URL}/start-conversation`, {
         sessionId: sessionId.current,
       });
-      const { message } = res.data;
+      const { message, ttsText, currentScene } = res.data;
+      // Apply the random starting scene immediately
+      if (currentScene && onToolCall) {
+        onToolCall({ name: 'change_scene', arguments: { scene: currentScene, transition_line: '' } });
+      }
       setMessages([{ sender: 'ai', text: message }]);
-      await speak(message);
+      await speak(ttsText || message);
     } catch (err) {
       console.error('Start error:', err);
     }
@@ -336,7 +367,17 @@ function VoiceControls({ onToolCall }) {
             {messages.map((msg, i) => (
               <div key={i} className={`msg msg-${msg.sender}`}>
                 <span className="msg-label">{msg.sender === 'ai' ? 'Cosmo' : 'You'}</span>
-                <p className="msg-text">{msg.text}</p>
+                {msg.sender === 'ai' ? (
+                  <div className="msg-text msg-bilingual">
+                    {parseMessage(msg.text).map((seg, j) =>
+                      seg.type === 'hi'
+                        ? <span key={j} className="msg-hindi">{seg.text}</span>
+                        : <span key={j} className="msg-english">{seg.text}</span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="msg-text">{msg.text}</p>
+                )}
               </div>
             ))}
             {(isListening || liveText) && (
