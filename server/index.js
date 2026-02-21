@@ -2,12 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import multer from 'multer';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,25 +20,19 @@ app.use(cors());
 app.use(express.json());
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
 
-// ElevenLabs voice — auto-detect an Indian accent voice at startup, fallback to Rachel
-let VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
+// msedge-tts — Microsoft neural voices, free, no API key needed
+// hi-IN-SwaraNeural handles Hinglish (mixed Hindi+English) naturally
+const edgeTTS = new MsEdgeTTS();
+let ttsReady = false;
 (async () => {
   try {
-    const result = await elevenlabs.voices.getAll();
-    const list   = result?.voices || [];
-    const indian = list.find(v =>
-      v.labels?.accent?.toLowerCase().includes('indian') ||
-      /meera|priya|neerja|ananya/i.test(v.name || '')
-    );
-    if (indian) {
-      VOICE_ID = indian.voice_id;
-      console.log(`Indian voice found: ${indian.name} (${VOICE_ID})`);
-    } else {
-      console.log('No Indian accent voice found on your account — using default voice. Add one on elevenlabs.io and set ELEVENLABS_VOICE_ID in .env.');
-    }
-  } catch (_) { /* keep default */ }
+    await edgeTTS.setMetadata('hi-IN-SwaraNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    ttsReady = true;
+    console.log('Edge TTS ready: hi-IN-SwaraNeural');
+  } catch (e) {
+    console.error('Edge TTS init failed:', e.message);
+  }
 })();
 
 // Available story scenes
@@ -385,24 +379,24 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
 app.post('/api/text-to-speech', async (req, res) => {
   try {
     const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'No text' });
 
-    const audio = await elevenlabs.textToSpeech.convert(VOICE_ID, {
-      text,
-      modelId: 'eleven_multilingual_v2',   // required for Hindi + English bilingual speech
-      voiceSettings: { stability: 0.5, similarityBoost: 0.75 },
-      optimizeStreamingLatency: 3
-    });
+    // Re-init if not ready (e.g. after a connection drop)
+    if (!ttsReady) {
+      await edgeTTS.setMetadata('hi-IN-SwaraNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      ttsReady = true;
+    }
 
     res.set({
       'Content-Type': 'audio/mpeg',
-      'Transfer-Encoding': 'chunked',
+      'Transfer-Encoding': 'chunked'
     });
 
-    for await (const chunk of audio) {
-      res.write(chunk);
-    }
-    
-    res.end();
+    const stream = edgeTTS.toStream(text);
+    stream.on('data',  chunk => res.write(chunk));
+    stream.on('end',   ()    => res.end());
+    stream.on('error', err  => { console.error('Edge TTS stream error:', err); res.end(); });
+
   } catch (error) {
     console.error('TTS Error:', error);
     res.status(500).json({ error: 'Text-to-speech failed' });
