@@ -77,7 +77,33 @@ function VoiceControls({ onToolCall }) {
     };
   }, []);
 
-  // ── ElevenLabs TTS (only) ────────────────────────────────────────────────
+  // ── Browser SpeechSynthesis fallback ────────────────────────────────────
+  const speakBrowser = useCallback((text) => {
+    return new Promise((resolve) => {
+      if (!window.speechSynthesis) { resolve(); return; }
+      window.speechSynthesis.cancel();
+
+      // Strip Hindi Devanagari — browser TTS usually can't pronounce it well
+      const clean = text.replace(/[\u0900-\u097F\u0964\u0965]+/g, '').replace(/\s+/g, ' ').trim();
+
+      const utter = new SpeechSynthesisUtterance(clean);
+      utter.rate  = 0.92;
+      utter.pitch = 1.05;
+      utter.lang  = 'en-IN';  // Indian English accent when available
+
+      // Try to find an Indian English voice
+      const voices = window.speechSynthesis.getVoices();
+      const indian = voices.find(v => v.lang === 'en-IN') ||
+                     voices.find(v => v.lang.startsWith('en'));
+      if (indian) utter.voice = indian;
+
+      utter.onend   = () => { setIsSpeaking(false); resolve(); };
+      utter.onerror = () => { setIsSpeaking(false); resolve(); };
+      window.speechSynthesis.speak(utter);
+    });
+  }, []);
+
+  // ── ElevenLabs TTS → browser fallback on any error ──────────────────────
   const speak = useCallback((text) => {
     return new Promise(async (resolve) => {
       try {
@@ -89,10 +115,16 @@ function VoiceControls({ onToolCall }) {
           body: JSON.stringify({ text })
         });
 
-        if (!response.ok || !response.body) throw new Error('TTS failed');
+        // 401 (quota/banned) or 5xx → fall back to browser TTS immediately
+        if (!response.ok) {
+          console.warn(`TTS HTTP ${response.status} — using browser fallback`);
+          await speakBrowser(text);
+          resolve();
+          return;
+        }
 
-        // MediaSource streaming: audio starts playing on the very first chunk
-        // instead of waiting for the whole file to download
+        if (!response.body) throw new Error('No body');
+
         const mediaSource = new MediaSource();
         const audioUrl    = URL.createObjectURL(mediaSource);
         const audio       = new Audio(audioUrl);
@@ -106,7 +138,6 @@ function VoiceControls({ onToolCall }) {
           try {
             sb = mediaSource.addSourceBuffer('audio/mpeg');
           } catch {
-            // Browser doesn't support audio/mpeg in MediaSource — fall back to full buffer
             const data = await response.arrayBuffer();
             URL.revokeObjectURL(audioUrl);
             const fbUrl = URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
@@ -117,32 +148,20 @@ function VoiceControls({ onToolCall }) {
             return;
           }
 
-          const reader  = response.body.getReader();
-          let started   = false;
+          const reader = response.body.getReader();
+          let started  = false;
 
           const pump = async () => {
             try {
               const { done, value } = await reader.read();
-
               if (done) {
-                if (sb.updating) {
-                  await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
-                }
+                if (sb.updating) await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
                 try { mediaSource.endOfStream(); } catch (_) {}
                 return;
               }
-
-              if (sb.updating) {
-                await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
-              }
+              if (sb.updating) await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
               sb.appendBuffer(value);
-
-              // Start playback immediately on first chunk — no waiting for full file
-              if (!started) {
-                started = true;
-                audio.play().catch(console.error);
-              }
-
+              if (!started) { started = true; audio.play().catch(console.error); }
               await new Promise(r => sb.addEventListener('updateend', r, { once: true }));
               pump();
             } catch (e) {
@@ -150,17 +169,16 @@ function VoiceControls({ onToolCall }) {
               try { mediaSource.endOfStream('decode'); } catch (_) {}
             }
           };
-
           pump();
         });
 
       } catch (err) {
-        console.error('TTS error:', err);
-        setIsSpeaking(false);
+        console.warn('TTS error — using browser fallback:', err.message);
+        await speakBrowser(text);
         resolve();
       }
     });
-  }, []);
+  }, [speakBrowser]);
 
   // ── Send message to AI ───────────────────────────────────────────────────
   const handleUserMessage = useCallback(async (text) => {
