@@ -92,13 +92,10 @@ REPLY RULES:
 1. Write 2–3 short bilingual sentences + 1 bilingual question. NEVER return empty text.
 2. Be excited, warm, and encouraging. Never scary.
 
-SCENE-SWITCHING — IMMEDIATELY change scene when the child mentions these topics:
-• fish, sea, water, ocean, whale, dolphin, crab, coral, mermaid, seahorse → change to "ocean"
-• trees, animals, lion, tiger, elephant, jungle, birds, monkey, deer, bear → change to "forest"
-• castle, princess, dragon, knight, king, queen, palace, magic wand → change to "castle"
-• mountains, snow, climb, hill, cold, hiking, peak, glacier → change to "mountains"
-• rocket, stars, planet, alien, galaxy, spacecraft, astronaut, moon → change to "space"
-Also call change_scene every 2–3 exchanges to keep the adventure fresh (available: ${SCENE_KEYS.filter(k => k !== sceneId).join(', ')}).
+SCENE-SWITCHING — You can create ANY background image. Call change_scene when:
+• The child mentions a new topic (animals, space, ocean, jungle, castle, volcano, candy land, dinosaurs, farm, city, etc.)
+• Every 2–3 exchanges to keep the adventure fresh
+For scene_description: write a vivid, colorful, child-friendly image description like a storybook illustration. Always include "magical storybook illustration, vibrant colors, child-friendly" in the description.
 
 TOOL USAGE:
 - Call add_visual_effect on magical moments (sparkle=magic, glow=happy, zoom=action)
@@ -127,14 +124,14 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'change_scene',
-      description: 'Change the story image to a new exciting location to advance the adventure',
+      description: 'Change the background image to any location in the story — dinosaur land, candy world, volcano, underwater city, anything.',
       parameters: {
         type: 'object',
         properties: {
-          scene: { type: 'string', enum: SCENE_KEYS, description: 'The new scene to travel to' },
-          transition_line: { type: 'string', description: 'A short exciting sentence telling the child where the story is going next (max 15 words)' }
+          scene_label: { type: 'string', description: 'Short display name for the scene, e.g. "Dinosaur Jungle" (max 3 words)' },
+          scene_description: { type: 'string', description: 'Vivid image prompt for AI art generation, e.g. "lush dinosaur jungle with volcanoes, giant ferns, colorful sky, magical storybook style" (15-20 words, child-friendly)' }
         },
-        required: ['scene', 'transition_line']
+        required: ['scene_label', 'scene_description']
       }
     }
   }
@@ -325,7 +322,13 @@ app.post('/api/start-conversation', async (req, res) => {
       ]
     });
 
-    res.json({ message: initialMessage, ttsText: toTTSText(initialMessage), currentScene: startScene });
+    res.json({
+      message: initialMessage,
+      ttsText: toTTSText(initialMessage),
+      currentScene: startScene,
+      sceneLabel: scene.label,
+      sceneDescription: scene.description
+    });
   } catch (error) {
     console.error('Start error:', error);
     res.status(500).json({ error: 'Failed to start conversation' });
@@ -380,13 +383,11 @@ app.post('/api/text-to-speech', async (req, res) => {
       body: JSON.stringify({
         inputs: [text],
         target_language_code: 'hi-IN',
-        speaker: 'meera',
-        pitch: 0,
+        speaker: 'pooja',
         pace: 1.0,
-        loudness: 1.5,
         speech_sample_rate: 22050,
         enable_preprocessing: true,
-        model: 'bulbul:v1'
+        model: 'bulbul:v3'
       })
     });
 

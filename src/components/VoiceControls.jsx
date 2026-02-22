@@ -101,40 +101,67 @@ function VoiceControls({ onToolCall }) {
     });
   }, []);
 
+  // Split text into sentences for pipelined TTS (first sentence plays ASAP)
+  const splitSentences = (text) => {
+    // Split on .  !  ?  |  (Hindi danda) — keep short chunks
+    const parts = text.split(/(?<=[.!?।])\s+/);
+    // Merge very short fragments (< 8 chars) with the next sentence
+    const merged = [];
+    let buf = '';
+    for (const p of parts) {
+      buf = buf ? buf + ' ' + p : p;
+      if (buf.length >= 8) { merged.push(buf.trim()); buf = ''; }
+    }
+    if (buf) merged.push(buf.trim());
+    return merged.filter(Boolean);
+  };
+
+  const fetchAudio = useCallback(async (text) => {
+    const response = await fetch(`${API_URL}/text-to-speech`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (!response.ok) throw new Error(`TTS HTTP ${response.status}`);
+    return await response.blob();
+  }, []);
+
   // ── Google Cloud TTS → browser fallback on any error ────────────────────
   const speak = useCallback((text) => {
     return new Promise(async (resolve) => {
       try {
         setIsSpeaking(true);
+        const sentences = splitSentences(text);
+        if (!sentences.length) { setIsSpeaking(false); resolve(); return; }
 
-        const response = await fetch(`${API_URL}/text-to-speech`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
+        // Kick off first sentence fetch immediately
+        const fetches = [fetchAudio(sentences[0])];
+
+        const playBlob = (blob) => new Promise((res) => {
+          const url   = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.onended = () => { URL.revokeObjectURL(url); res(); };
+          audio.onerror = () => { URL.revokeObjectURL(url); res(); };
+          audio.play().catch(() => res());
         });
 
-        if (!response.ok) {
-          console.warn(`TTS HTTP ${response.status} — using browser fallback`);
-          await speakBrowser(text);
-          resolve();
-          return;
+        for (let i = 0; i < sentences.length; i++) {
+          // Pre-fetch next sentence in parallel while current is playing
+          if (i + 1 < sentences.length) fetches.push(fetchAudio(sentences[i + 1]));
+          let blob;
+          try { blob = await fetches[i]; } catch { break; }
+          await playBlob(blob);
         }
 
-        const blob    = await response.blob();
-        const url     = URL.createObjectURL(blob);
-        const audio   = new Audio(url);
-        const cleanup = () => { setIsSpeaking(false); URL.revokeObjectURL(url); resolve(); };
-        audio.onended = cleanup;
-        audio.onerror = cleanup;
-        audio.play().catch(async () => { URL.revokeObjectURL(url); await speakBrowser(text); resolve(); });
-
+        setIsSpeaking(false);
+        resolve();
       } catch (err) {
         console.warn('TTS error — using browser fallback:', err.message);
         await speakBrowser(text);
         resolve();
       }
     });
-  }, [speakBrowser]);
+  }, [fetchAudio, speakBrowser]);
 
   // ── Send message to AI ───────────────────────────────────────────────────
   const handleUserMessage = useCallback(async (text) => {
