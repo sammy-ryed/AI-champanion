@@ -7,7 +7,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// Google Cloud Text-to-Speech — Neural2 Hindi voices, free 100k chars/month
+// Sarvam AI TTS — built for Hindi/Hinglish, free tier, no billing needed
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,7 +21,7 @@ app.use(express.json());
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const GOOGLE_TTS_KEY = process.env.GOOGLE_TTS_API_KEY;
+const SARVAM_KEY = process.env.SARVAM_API_KEY;
 
 // Available story scenes
 export const SCENES = {
@@ -368,27 +368,34 @@ app.post('/api/text-to-speech', async (req, res) => {
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'No text' });
-    if (!GOOGLE_TTS_KEY) return res.status(500).json({ error: 'No TTS API key configured' });
+    if (!SARVAM_KEY) return res.status(500).json({ error: 'No TTS API key configured' });
 
-    // Google Cloud TTS — hi-IN-Neural2-A handles Hinglish natively
-    const ttsRes = await fetch(
-      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: { text },
-          voice: { languageCode: 'hi-IN', name: 'hi-IN-Neural2-A' },
-          audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 }
-        })
-      }
-    );
+    // Sarvam AI — Bulbul v1 model, Meera voice, handles Hinglish natively
+    const ttsRes = await fetch('https://api.sarvam.ai/text-to-speech', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-subscription-key': SARVAM_KEY
+      },
+      body: JSON.stringify({
+        inputs: [text],
+        target_language_code: 'hi-IN',
+        speaker: 'meera',
+        pitch: 0,
+        pace: 1.0,
+        loudness: 1.5,
+        speech_sample_rate: 22050,
+        enable_preprocessing: true,
+        model: 'bulbul:v1'
+      })
+    });
 
     const data = await ttsRes.json();
-    if (!ttsRes.ok) throw new Error(data.error?.message || 'Google TTS failed');
+    if (!ttsRes.ok) throw new Error(data.message || JSON.stringify(data));
 
-    const audioBuffer = Buffer.from(data.audioContent, 'base64');
-    res.set('Content-Type', 'audio/mpeg');
+    // Response: { audios: ["<base64-encoded-wav>"] }
+    const audioBuffer = Buffer.from(data.audios[0], 'base64');
+    res.set('Content-Type', 'audio/wav');
     res.send(audioBuffer);
 
   } catch (error) {
