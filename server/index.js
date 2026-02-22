@@ -7,7 +7,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+// Google Cloud Text-to-Speech — Neural2 Hindi voices, free 100k chars/month
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,19 +21,7 @@ app.use(express.json());
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// msedge-tts — Microsoft neural voices, free, no API key needed
-// hi-IN-SwaraNeural handles Hinglish (mixed Hindi+English) naturally
-const edgeTTS = new MsEdgeTTS();
-let ttsReady = false;
-(async () => {
-  try {
-    await edgeTTS.setMetadata('hi-IN-SwaraNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-    ttsReady = true;
-    console.log('Edge TTS ready: hi-IN-SwaraNeural');
-  } catch (e) {
-    console.error('Edge TTS init failed:', e.message);
-  }
-})();
+const GOOGLE_TTS_KEY = process.env.GOOGLE_TTS_API_KEY;
 
 // Available story scenes
 export const SCENES = {
@@ -380,25 +368,31 @@ app.post('/api/text-to-speech', async (req, res) => {
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'No text' });
+    if (!GOOGLE_TTS_KEY) return res.status(500).json({ error: 'No TTS API key configured' });
 
-    // Re-init if not ready (e.g. after a connection drop)
-    if (!ttsReady) {
-      await edgeTTS.setMetadata('hi-IN-SwaraNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-      ttsReady = true;
-    }
+    // Google Cloud TTS — hi-IN-Neural2-A handles Hinglish natively
+    const ttsRes = await fetch(
+      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: { text },
+          voice: { languageCode: 'hi-IN', name: 'hi-IN-Neural2-A' },
+          audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 }
+        })
+      }
+    );
 
-    res.set({
-      'Content-Type': 'audio/mpeg',
-      'Transfer-Encoding': 'chunked'
-    });
+    const data = await ttsRes.json();
+    if (!ttsRes.ok) throw new Error(data.error?.message || 'Google TTS failed');
 
-    const stream = edgeTTS.toStream(text);
-    stream.on('data',  chunk => res.write(chunk));
-    stream.on('end',   ()    => res.end());
-    stream.on('error', err  => { console.error('Edge TTS stream error:', err); res.end(); });
+    const audioBuffer = Buffer.from(data.audioContent, 'base64');
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(audioBuffer);
 
   } catch (error) {
-    console.error('TTS Error:', error);
+    console.error('TTS Error:', error.message);
     res.status(500).json({ error: 'Text-to-speech failed' });
   }
 });
