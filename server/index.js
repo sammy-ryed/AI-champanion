@@ -195,16 +195,17 @@ app.post('/api/chat', async (req, res) => {
     // ── Helper: salvage text + scene from a failed_generation string ──────
     const salvageFromFailedGen = (failedGen) => {
       if (!failedGen) return;
-      // Extract scene from <function=change_scene>{"scene":"ocean",...}
-      const sceneMatch = failedGen.match(/<function=change_scene[^>]*>\s*\{[^}]*"scene"\s*:\s*"([^"]+)"/);
-      if (sceneMatch && SCENES[sceneMatch[1]]) {
-        const newScene = sceneMatch[1];
-        toolCall = { name: 'change_scene', arguments: { scene: newScene, transition_line: '' } };
-        session.currentScene = newScene;
-        session.history[0]   = { role: 'system', content: buildSystemPrompt(newScene) };
+      // Extract new-format change_scene: {"scene_label":"...","scene_description":"..."}
+      const labelMatch = failedGen.match(/"scene_label"\s*:\s*"([^"]+)"/);
+      const descMatch  = failedGen.match(/"scene_description"\s*:\s*"([^"]+)"/);
+      if (labelMatch || descMatch) {
+        toolCall = { name: 'change_scene', arguments: {
+          scene_label:       labelMatch?.[1] || 'Adventure',
+          scene_description: descMatch?.[1]  || 'magical colorful storybook adventure landscape'
+        }};
       }
-      // Extract scene from <function=add_visual_effect>{"effect":"sparkle",...}
-      const fxMatch = failedGen.match(/<function=add_visual_effect[^>]*>\s*\{[^}]*"effect"\s*:\s*"([^"]+)"/);
+      // Extract add_visual_effect
+      const fxMatch = failedGen.match(/"effect"\s*:\s*"([^"]+)"/);
       if (fxMatch && !toolCall) {
         toolCall = { name: 'add_visual_effect', arguments: { effect: fxMatch[1], reason: '' } };
       }
@@ -217,7 +218,7 @@ app.post('/api/chat', async (req, res) => {
       const completion = await groq.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: session.history,
-        max_tokens: 200,
+        max_tokens: 350,
         temperature: 0.9,
         tools: TOOLS,
         tool_choice: 'auto'
@@ -231,9 +232,9 @@ app.post('/api/chat', async (req, res) => {
         const args = JSON.parse(raw.function.arguments);
         toolCall   = { name, arguments: args };
 
-        if (name === 'change_scene' && SCENES[args.scene]) {
-          session.currentScene = args.scene;
-          session.history[0]   = { role: 'system', content: buildSystemPrompt(args.scene) };
+        // change_scene: no longer tied to fixed SCENES — just accept any label/description
+        if (name === 'change_scene') {
+          // nothing server-side to update for dynamic scenes
         }
       }
 
@@ -248,7 +249,7 @@ app.post('/api/chat', async (req, res) => {
             { role: 'assistant', content: null, tool_calls: responseMessage.tool_calls },
             { role: 'tool', tool_call_id: responseMessage.tool_calls[0].id, content: 'done' }
           ],
-          max_tokens: 200,
+          max_tokens: 350,
           temperature: 0.9
           // no tools here — prevents cascading tool_use_failed
         });
@@ -269,7 +270,7 @@ app.post('/api/chat', async (req, res) => {
           const retry = await groq.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
             messages: session.history,
-            max_tokens: 200,
+            max_tokens: 350,
             temperature: 0.9
             // no tools at all
           });
@@ -308,7 +309,7 @@ app.post('/api/start-conversation', async (req, res) => {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      max_tokens: 80,
+      max_tokens: 200,
       temperature: 0.9
     });
 

@@ -53,12 +53,13 @@ function App() {
       }
 
       // Dynamic AI-chosen scene — preload Pollinations image then crossfade
-      const url   = pollinationsUrl(scene_description)
       const label = scene_label || 'Adventure'
+      const desc  = scene_description || `${label} magical storybook illustration vibrant colors child-friendly`
+      const url   = pollinationsUrl(desc)
       setPendingScene({ url, label })
 
       const img = new Image()
-      img.onload = () => {
+      const applyScene = () => {
         setIsTransitioning(true)
         setTimeout(() => {
           setCurrentScene({ url, label })
@@ -68,7 +69,10 @@ function App() {
           setTimeout(() => setIsTransitioning(false), 400)
         }, 300)
       }
-      img.onerror = () => setPendingScene(null) // silently skip on failure
+      // Apply after load, or force-apply after 25s timeout
+      const timeout = setTimeout(applyScene, 25000)
+      img.onload  = () => { clearTimeout(timeout); applyScene(); }
+      img.onerror = () => { clearTimeout(timeout); applyScene(); } // show even if broken
       img.src = url
     }
   }, [])

@@ -342,6 +342,7 @@ function VoiceControls({ onToolCall }) {
         <div className="idle-screen">
           <p className="idle-hint">An adventure story, just for you</p>
           <button className="btn-start" onClick={handleStart}>Start Adventure</button>
+          <p className="space-hint">🎙️ Hold <kbd>Space</kbd> to talk</p>
         </div>
       ) : (
         <>
@@ -423,6 +424,11 @@ function VoiceControls({ onToolCall }) {
               disabled={!userInput.trim() || isListening || isProcessing || isSpeaking}
             >Send</button>
           </div>
+          {sttAvailable && (
+            <p className="space-hint">
+              {isListening ? '🔴 Recording… release Space to send' : <span>🎙️ Hold <kbd>Space</kbd> to talk</span>}
+            </p>
+          )}
         </>
       )}
     </div>
